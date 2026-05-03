@@ -1,6 +1,84 @@
+import { Camera } from "./scene/camera.js";
+import { createTerrain } from "./objects/terrain.js";
+import { createFlowers, initFlowerBuffers, renderFlowers } from "./objects/flowers.js";
+import { createRiver, initRiverBuffers, renderRiver, createRiverPebbles, initPebbleBuffers, renderPebbles } from "./objects/river.js";
+
+
+let terrainVBO;
+let terrainNBO;
+let terrainIBO;
+let terrain;
+
+function renderTerrain(gl, terrainBuffers, terrain, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uTexture, uUseTexture, grassTexture) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffers.vbo);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aPosition);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffers.nbo);
+    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aNormal);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffers.tbo);
+    gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aTexCoord);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, grassTexture);
+    gl.uniform1i(uUseTexture, 1);  
+    gl.uniform1i(uTexture, 0);    
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, terrainBuffers.ibo);
+
+    const model = new Float32Array([
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        -30, 0, -30, 1
+    ]);
+    gl.uniformMatrix4fv(uModel, false, model);
+    gl.drawElements(gl.TRIANGLES, terrain.count, gl.UNSIGNED_SHORT, 0);
+
+    gl.uniform1i(uUseTexture, 0);
+}
+
 async function loadShaderSource(url) {
     const response = await fetch(url);
     return await response.text();
+}
+
+function loadTexture(gl, url) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 128, 0, 255]));
+
+    const image = new Image();
+    image.src = url;
+    image.onload = () => {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+
+        const isPOT = (v) => v > 0 && (v & (v - 1)) === 0;
+        if (isPOT(image.width) && isPOT(image.height)) {
+            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        } else {
+            const canvas2d = document.createElement("canvas");
+            canvas2d.width = 512;
+            canvas2d.height = 512;
+            const ctx = canvas2d.getContext("2d");
+            ctx.drawImage(image, 0, 0, 512, 512);
+
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas2d);
+            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        }
+    };
+
+    return texture;
 }
 
 function createShader(gl, type, source) {
@@ -32,12 +110,10 @@ function createProgram(gl, vs, fs) {
 
 function drawCabin(cabin, modelMatrix, color) {
 
-    // POSITION
     gl.bindBuffer(gl.ARRAY_BUFFER, cabin.vertexBuffer);
     gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(aPosition);
 
-    // NORMAL
     gl.bindBuffer(gl.ARRAY_BUFFER, cabin.normalBuffer);
     gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(aNormal);
@@ -51,6 +127,90 @@ function drawCabin(cabin, modelMatrix, color) {
 async function main() {
     const canvas = document.getElementById("glCanvas");
     const gl = canvas.getContext("webgl");
+
+     if (!gl) {
+        alert("WebGL not supported");
+        return;
+    }
+
+    const terrain = createTerrain(60, 1);
+    const flowers = createFlowers(terrain.getHeight, 120, 60);
+    const flowerBuffers = initFlowerBuffers(gl);
+    const river = createRiver(terrain.getHeight, 60);
+    const riverBuffers = initRiverBuffers(gl, river);
+
+    const pebbles = createRiverPebbles(terrain.getHeight, river);
+    const pebbleBuffers = initPebbleBuffers(gl);
+    const waterTexture = await loadTexture(gl, "./textures/water.jpg");
+
+    const terrainBuffers = {
+        vbo: gl.createBuffer(),
+        nbo: gl.createBuffer(),
+        ibo: gl.createBuffer(),
+        tbo: gl.createBuffer()
+    };
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffers.vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, terrain.vertices, gl.STATIC_DRAW);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffers.nbo);
+    gl.bufferData(gl.ARRAY_BUFFER, terrain.normals, gl.STATIC_DRAW);
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, terrainBuffers.ibo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, terrain.indices, gl.STATIC_DRAW);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffers.tbo);
+    gl.bufferData(gl.ARRAY_BUFFER, terrain.texcoords, gl.STATIC_DRAW);
+
+    const cameraStatic = new Camera();
+    const cameraOrbit = new Camera();
+    const cameraCabin = new Camera();
+
+    let activeCamera = cameraStatic;
+
+    cameraStatic.position = [0, 2, 6];
+    cameraOrbit.position = [6, 2, 0];
+    cameraCabin.position = [0, 0.5, 2];
+
+    window.addEventListener("keydown", (e) => {
+
+        if (e.key === "1") activeCamera = cameraStatic;
+        if (e.key === "2") activeCamera = cameraOrbit;
+        if (e.key === "3") activeCamera = cameraCabin;
+
+    });
+
+    let isDragging = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    window.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+    });
+
+    window.addEventListener("mouseup", () => {
+        isDragging = false;
+    });
+
+    window.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+
+        lastX = e.clientX;
+        lastY = e.clientY;
+
+        activeCamera.targetYaw += dx * activeCamera.sensitivity;
+        activeCamera.targetPitch += dy * activeCamera.sensitivity;
+
+        activeCamera.targetPitch = Math.max(
+            -1.2,
+            Math.min(1.2, activeCamera.targetPitch)
+        );
+    });
 
     if (!gl) {
         alert("WebGL not supported");
@@ -69,8 +229,13 @@ async function main() {
     const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
     const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
     const program = createProgram(gl, vs, fs);
-
     gl.useProgram(program);
+
+    const aTexCoord = gl.getAttribLocation(program, "aTexCoord");
+    const uTexture = gl.getUniformLocation(program, "uTexture");
+    const uUseTexture = gl.getUniformLocation(program, "uUseTexture");
+
+    const grassTexture = loadTexture(gl, "./textures/grass.jpg");
 
     const positionLocation = gl.getAttribLocation(program, "aPosition");
     const aPosition = gl.getAttribLocation(program, "aPosition");
@@ -83,6 +248,9 @@ async function main() {
     const uLightPos = gl.getUniformLocation(program, "uLightPos");
     const uViewPos = gl.getUniformLocation(program, "uViewPos");
     const uObjectColor = gl.getUniformLocation(program, "uObjectColor");
+
+    const uTime    = gl.getUniformLocation(program, "uTime");
+    const uIsWater = gl.getUniformLocation(program, "uIsWater");
 
     gl.uniform3fv(uLightPos, [5, 5, 5]);
     gl.uniform3fv(uViewPos, [0, 0, 4]);
@@ -164,79 +332,84 @@ async function main() {
 
     gl.clearColor(0,0,0,1);
 
-    function render() {
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+function render() {
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        const t = performance.now() * 0.001;
-        const wheelAngle = t * 0.5;
+    const t = performance.now() * 0.001;  
+    gl.uniform1f(uTime, t);      
+    gl.uniform1i(uIsWater, 0);
 
-        const hubModel = new Float32Array([
-            Math.cos(wheelAngle),0,Math.sin(wheelAngle),0,
-            0,1,0,0,
-            -Math.sin(wheelAngle),0,Math.cos(wheelAngle),0,
-            0,0,0,1
-        ]);
+    renderTerrain(gl, terrainBuffers, terrain, aPosition, aNormal, aTexCoord,
+              uModel, uObjectColor, uTexture, uUseTexture, grassTexture);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, cubeNormalBuffer);
-        gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(aNormal);
+    cameraOrbit.position = [
+        Math.cos(t * 0.5) * 6,
+        2,
+        Math.sin(t * 0.5) * 6
+    ];
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, cubeBuffer);
-        gl.vertexAttribPointer(positionLocation,3,gl.FLOAT,false,0,0);
-        gl.enableVertexAttribArray(positionLocation);
+    activeCamera.update();
+    gl.uniformMatrix4fv(uView, false, activeCamera.getViewMatrix());
 
-        gl.uniformMatrix4fv(uModel,false,hubModel);
-        gl.uniform3fv(uObjectColor,[0.2,0.8,0.2]);
-        gl.drawArrays(gl.TRIANGLES, 0, 36);
+    const wheelAngle = t * 0.5;
 
-        const count = 8;
+    const hubModel = new Float32Array([
+        Math.cos(wheelAngle),0,Math.sin(wheelAngle),0,
+        0,1,0,0,
+        -Math.sin(wheelAngle),0,Math.cos(wheelAngle),0,
+        0,0,0,1
+    ]);
 
-        const angle = wheelAngle;
-        const radius = 2.5;
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeNormalBuffer);
+    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(aNormal);
 
-        for (let i = 0; i < 8; i++) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeBuffer);
+    gl.vertexAttribPointer(positionLocation,3,gl.FLOAT,false,0,0);
+    gl.enableVertexAttribArray(positionLocation);
 
-            const a = i / 8 * Math.PI * 2;
+    gl.uniformMatrix4fv(uModel,false,hubModel);
+    gl.uniform3fv(uObjectColor,[0.2,0.8,0.2]);
+    gl.drawArrays(gl.TRIANGLES, 0, 36);
 
-            const x = Math.cos(a + angle) * radius;
-            const z = Math.sin(a + angle) * radius;
+    const radius = 2.5;
 
-            let model = new Float32Array([
-                1,0,0,0,
-                0,1,0,0,
-                0,0,1,0,
-                x,0,z,1
-            ]);
+    for (let i = 0; i < 8; i++) {
 
-            const c = Math.cos(-(a + angle));
-            const s = Math.sin(-(a + angle));
+        const a = i / 8 * Math.PI * 2;
 
-            model[0] = c; model[2] = s;
-            model[8] = -s; model[10] = c;
+        const x = Math.cos(a + wheelAngle) * radius;
+        const z = Math.sin(a + wheelAngle) * radius;
 
-            gl.uniformMatrix4fv(uModel, false, model);
-            gl.uniform3fv(uObjectColor, [0.7, 0.7, 0.7]);
-
-            gl.drawArrays(gl.TRIANGLES, 0, 36);
-        }
-
-        const groundModel = new Float32Array([
+        let model = new Float32Array([
             1,0,0,0,
             0,1,0,0,
             0,0,1,0,
-            0,-1,0,1
+            x,0,z,1
         ]);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, groundBuffer);
-        gl.vertexAttribPointer(positionLocation,3,gl.FLOAT,false,0,0);
-        gl.enableVertexAttribArray(positionLocation);
+        const c = Math.cos(-(a + wheelAngle));
+        const s = Math.sin(-(a + wheelAngle));
 
-        gl.uniformMatrix4fv(uModel,false,groundModel);
-        gl.uniform3fv(uObjectColor,[0.3,0.3,0.3]);
-        gl.drawArrays(gl.TRIANGLES,0,6);
+        model[0] = c; model[2] = s;
+        model[8] = -s; model[10] = c;
 
-        requestAnimationFrame(render);
+        gl.uniformMatrix4fv(uModel, false, model);
+        gl.uniform3fv(uObjectColor, [0.7, 0.7, 0.7]);
+
+        gl.drawArrays(gl.TRIANGLES, 0, 36);
+
+        if (i === 0) {
+            cameraCabin.position = [x, 0.5, z];
+            cameraCabin.target = [0, 0, 0];
+        }
     }
+    renderFlowers(gl, flowerBuffers, flowers, [-30, 0, -30], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture);
+    renderRiver(gl, riverBuffers, river, [-30, 0, -30], t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uTime, waterTexture, uTexture);
+    renderPebbles(gl, pebbleBuffers, pebbles, [-30, 0, -30], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater);
+
+    requestAnimationFrame(render);
+}
 
     render();
 }
