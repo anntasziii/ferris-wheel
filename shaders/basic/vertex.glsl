@@ -12,6 +12,8 @@ varying vec3 vPosition;
 varying vec2 vTexCoord;
 varying mediump float vTime; 
 
+uniform bool uIsFlower;
+
 void main() {
     vec4 worldPos = uModel * vec4(aPosition, 1.0);
     vPosition = worldPos.xyz;

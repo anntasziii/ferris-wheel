@@ -1,4 +1,3 @@
-
 function createDetailedFlower(size, petalCount, petalLength, petalWidth, petalRoundness, stemHeight, stemWidth) {
     const vertices = [];
     const normals  = [];
@@ -15,14 +14,16 @@ function createDetailedFlower(size, petalCount, petalLength, petalWidth, petalRo
     ];
     for (const v of stemVerts) vertices.push(v);
     for (let i = 0; i < 12; i++) normals.push(0, 1, 0);
-    for (let i = 0; i < 12; i++) texcoords.push(0, 0);
+    for (let i = 0; i < 12; i++) texcoords.push(0, 0); 
 
     const py = sh;
-    const pr = size * petalLength;   
-    const pw = size * petalWidth;    
-    const segments = Math.max(6, Math.round(petalRoundness * 4)); 
+    const pr = size * petalLength;
+    const pw = size * petalWidth;
+    const segments = Math.max(6, Math.round(petalRoundness * 4));
 
     for (let i = 0; i < petalCount; i++) {
+        const yOffset = i * 0.001; 
+
         const angle = (i / petalCount) * Math.PI * 2;
         const ca = Math.cos(angle);
         const sa = Math.sin(angle);
@@ -44,12 +45,19 @@ function createDetailedFlower(size, petalCount, petalLength, petalWidth, petalRo
             const wx2 = pcx + ca * lx2 - sa * lz2;
             const wz2 = pcz + sa * lx2 + ca * lz2;
 
-            vertices.push(pcx, py, pcz,  wx1, py, wz1,  wx2, py, wz2);
+            vertices.push(pcx, py + yOffset, pcz,  wx1, py + yOffset, wz1,  wx2, py + yOffset, wz2);
             normals.push(0, 1, 0,  0, 1, 0,  0, 1, 0);
-            texcoords.push(0, 0,  0, 0,  0, 0);
+
+            // texcoord.x: 0 = центр пелюстки, 1 = край — для градієнту кольору
+            texcoords.push(
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 0.0
+            );
         }
     }
 
+    // ── ЦЕНТР ────────────────────────────────────────────────────────────────
     const cr = size * 0.38;
     const cy = py + size * 0.05;
     const centerSegments = 10;
@@ -97,14 +105,31 @@ const FLOWER_TYPES = [
     },
 ];
 
-export function createFlowers(getHeight, count = 100, terrainSize = 60) {
+export function createFlowers(getHeight, getBaseHeight, count = 100, terrainSize = 60) {
     const flowers = [];
-    for (let i = 0; i < count; i++) {
-        const type = FLOWER_TYPES[Math.floor(Math.random() * FLOWER_TYPES.length)];
+    let attempts = 0;
+    const maxAttempts = count * 10; 
+
+    while (flowers.length < count && attempts < maxAttempts) {
+        attempts++;
+
         const x = Math.random() * terrainSize;
         const z = Math.random() * terrainSize;
-        const y = getHeight(x, z);
-        flowers.push({ x, y, z, type });
+
+        const fullY    = getHeight(x, z);      
+        const baseY    = getBaseHeight(x, z);  
+        const bankBoost = fullY - baseY;       
+
+        if (bankBoost > 0.1) continue; 
+
+        const step = 1.0;
+        const dX = Math.abs(getHeight(x + step, z) - getHeight(x - step, z));
+        const dZ = Math.abs(getHeight(x, z + step) - getHeight(x, z - step));
+        const slope = Math.max(dX, dZ);
+        if (slope > 1.5) continue;
+
+        const type = FLOWER_TYPES[Math.floor(Math.random() * FLOWER_TYPES.length)];
+        flowers.push({ x, y: fullY, z, type });
     }
     return flowers;
 }
@@ -129,7 +154,8 @@ export function initFlowerBuffers(gl) {
         gl.bindBuffer(gl.ARRAY_BUFFER, tbo);
         gl.bufferData(gl.ARRAY_BUFFER, geo.texcoords, gl.STATIC_DRAW);
 
-        buffers.push({ vbo, nbo, tbo,
+        buffers.push({
+            vbo, nbo, tbo,
             stemCount:   geo.stemCount,
             petalCount:  geo.petalCount,
             centerCount: geo.centerCount,
@@ -140,8 +166,9 @@ export function initFlowerBuffers(gl) {
 
 export function renderFlowers(gl, flowerBuffers, flowers, terrainOffset,
                                aPosition, aNormal, aTexCoord,
-                               uModel, uObjectColor, uUseTexture) {
+                               uModel, uObjectColor, uUseTexture, uIsFlower) {
     gl.uniform1i(uUseTexture, 0);
+    gl.uniform1i(uIsFlower, 1); 
 
     for (const f of flowers) {
         const typeIdx = FLOWER_TYPES.indexOf(f.type);
@@ -173,13 +200,20 @@ export function renderFlowers(gl, flowerBuffers, flowers, terrainOffset,
         ]);
         gl.uniformMatrix4fv(uModel, false, model);
 
+        gl.uniform1i(uIsFlower, 0);
         gl.uniform3fv(uObjectColor, f.type.stem);
         gl.drawArrays(gl.TRIANGLES, 0, buf.stemCount);
 
+        gl.uniform1i(uIsFlower, 1);
         gl.uniform3fv(uObjectColor, f.type.petal);
         gl.drawArrays(gl.TRIANGLES, buf.stemCount, buf.petalCount);
+        gl.drawArrays(gl.TRIANGLES, buf.stemCount, buf.petalCount);
+        gl.depthMask(true); 
 
+        gl.uniform1i(uIsFlower, 0);
         gl.uniform3fv(uObjectColor, f.type.center);
         gl.drawArrays(gl.TRIANGLES, buf.stemCount + buf.petalCount, buf.centerCount);
     }
+
+    gl.uniform1i(uIsFlower, 0); 
 }

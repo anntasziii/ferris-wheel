@@ -1,14 +1,14 @@
 const RIVER_POINTS = [
-    { x:  5, z:  2 },
-    { x: 10, z:  8 },
-    { x: 14, z: 15 },
-    { x: 18, z: 22 },
-    { x: 22, z: 28 },
-    { x: 28, z: 33 },
-    { x: 35, z: 36 },
-    { x: 42, z: 38 },
-    { x: 50, z: 42 },
-    { x: 56, z: 48 },
+    { x: 10,  z:  4  },
+    { x: 20,  z: 16  },
+    { x: 28,  z: 30  },
+    { x: 36,  z: 44  },
+    { x: 44,  z: 56  },
+    { x: 56,  z: 66  },
+    { x: 70,  z: 72  },
+    { x: 84,  z: 76  },
+    { x: 100, z: 84  },
+    { x: 112, z: 96  },
 ];
 
 function distToRiver(x, z) {
@@ -29,28 +29,41 @@ function distToRiver(x, z) {
     return minDist;
 }
 
-export function createTerrain(size = 60, step = 1) {
+export function createTerrain(size = 120, step = 1) {
     const vertices = [];
     const normals = [];
     const indices = [];
     const texcoords = [];
 
-    const riverWidth = 3.5;  
-    const bankWidth  = 3.0;   
+    const riverWidth = 3.0;  
+    const bankWidth  = 3.5;   
     const bankHeight = 1.5;   
 
     function baseNoise(x, z) {
         const nx = x * 0.08;
         const nz = z * 0.08;
-        const mountains = Math.sin(nx * 0.5) * Math.cos(nz * 0.5) * 3.0;
-        const hills     = Math.sin(nx * 1.2 + nz * 0.8) * 1.5;
-        const detail    = Math.sin(nx * 3.0) * Math.cos(nz * 3.0) * 0.4;
-        const bumps     = Math.cos(nx * 2.3) * Math.sin(nz * 2.7) * 0.8;
+        const mountains = Math.sin(nx * 0.5) * Math.cos(nz * 0.5) * 1.0;
+        const hills     = Math.sin(nx * 1.2 + nz * 0.8) * 0.8;
+        const detail    = Math.sin(nx * 3.0) * Math.cos(nz * 3.0) * 0.3;
+        const bumps     = Math.cos(nx * 2.3) * Math.sin(nz * 2.7) * 0.4;
         const base = mountains + hills + detail + bumps;
+        
         const centerZ = size / 2;
         const distZ = Math.abs(z - centerZ) / centerZ;
-        const edgeBoost = distZ * distZ * 5.0;
-        return base + edgeBoost;
+        const edgeBoost = distZ * distZ * 3.0;
+
+        const distX = Math.abs(x - size / 2) / (size / 2);
+        const distZ_edge = Math.abs(z - size / 2) / (size / 2);
+        const maxDist = Math.max(distX, distZ_edge);
+
+        let edgeHill = 0;
+        if (maxDist > 0.5) {
+            const edgeAmount = (maxDist - 0.5) / 0.5; 
+            const smooth = edgeAmount * edgeAmount * (3.0 - 2.0 * edgeAmount);
+            edgeHill = Math.pow(smooth, 0.7) * 9.5;
+        }
+
+        return base + edgeBoost + edgeHill;
     }
 
     function noise(x, z) {
@@ -60,6 +73,7 @@ export function createTerrain(size = 60, step = 1) {
         let bankBoost = 0.0;
         if (dist > riverEdge && dist < riverEdge + bankWidth) {
             const t = (dist - riverEdge) / bankWidth;
+            const smooth = t * t * (3.0 - 2.0 * t);
             bankBoost = Math.sin(t * Math.PI) * bankHeight;
         }
         return base + bankBoost;

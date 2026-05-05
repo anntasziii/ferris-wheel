@@ -1,41 +1,41 @@
 export class Camera {
     constructor() {
         this.position = [0, 2, 6];
+        this.target = [0, 0, 0];
 
         this.yaw = 0;
         this.pitch = 0;
-
         this.targetYaw = 0;
         this.targetPitch = 0;
 
         this.distance = 6;
-
         this.sensitivity = 0.005;
         this.smoothness = 0.08;
+
+        this.isOrbit = false; 
     }
 
     update() {
-        this.yaw += (this.targetYaw - this.yaw) * this.smoothness;
-        this.pitch += (this.targetPitch - this.pitch) * this.smoothness;
+        if (this.isOrbit) {
+            this.yaw   += (this.targetYaw   - this.yaw)   * this.smoothness;
+            this.pitch += (this.targetPitch - this.pitch) * this.smoothness;
 
-        const x = Math.cos(this.pitch) * Math.sin(this.yaw) * this.distance;
-        const y = Math.sin(this.pitch) * this.distance;
-        const z = Math.cos(this.pitch) * Math.cos(this.yaw) * this.distance;
+            const x = Math.cos(this.pitch) * Math.sin(this.yaw) * this.distance;
+            const y = Math.sin(this.pitch) * this.distance;
+            const z = Math.cos(this.pitch) * Math.cos(this.yaw) * this.distance;
 
-        this.position = [x, y, z];
+            this.position = [
+                this.target[0] + x,
+                this.target[1] + y,
+                this.target[2] + z
+            ];
+        }
     }
 
     getViewMatrix() {
-        const [x, y, z] = this.position;
-
-        return lookAt(
-            [x, y, z],
-            [0, 0, 0],
-            [0, 1, 0]
-        );
+        return lookAt(this.position, this.target, [0, 1, 0]);
     }
 }
-
 function lookAt(eye, center, up) {
     const [ex, ey, ez] = eye;
     const [cx, cy, cz] = center;

@@ -2,6 +2,11 @@ import { Camera } from "./scene/camera.js";
 import { createTerrain } from "./objects/terrain.js";
 import { createFlowers, initFlowerBuffers, renderFlowers } from "./objects/flowers.js";
 import { createRiver, initRiverBuffers, renderRiver, createRiverPebbles, initPebbleBuffers, renderPebbles } from "./objects/river.js";
+import { initSkybox, renderSkybox } from "./objects/skybox.js";
+import { initCloudBuffers, renderClouds } from "./objects/clouds.js";
+import { initFerrisWheel, renderFerrisWheel, CABIN_COUNT } from "./objects/ferrisWheel.js";
+import { initBirdBuffers, renderBirds } from "./objects/birds.js";
+import { createTrees, initTreeBuffers, renderTrees } from "./objects/trees.js";
 
 
 let terrainVBO;
@@ -33,7 +38,7 @@ function renderTerrain(gl, terrainBuffers, terrain, aPosition, aNormal, aTexCoor
         1,0,0,0,
         0,1,0,0,
         0,0,1,0,
-        -30, 0, -30, 1
+        -60, 0, -60, 1
     ]);
     gl.uniformMatrix4fv(uModel, false, model);
     gl.drawElements(gl.TRIANGLES, terrain.count, gl.UNSIGNED_SHORT, 0);
@@ -124,6 +129,24 @@ function drawCabin(cabin, modelMatrix, color) {
     gl.drawArrays(gl.TRIANGLES, 0, cabin.count);
 }
 
+function makePerspective(fovY, aspect, near, far) {
+    const f = 1.0 / Math.tan(fovY / 2);
+    return new Float32Array([
+        f / aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (far + near) / (near - far), -1,
+        0, 0, (2 * far * near) / (near - far), 0
+    ]);
+}
+
+const RIVER_PTS = [
+    { x: 5,  z: 5  }, { x: 15, z: 15 }, { x: 25, z: 28 },
+    { x: 36, z: 44 }, { x: 44, z: 56 }, { x: 56, z: 66 },
+    { x: 70, z: 72 }, { x: 84, z: 76 }, { x: 100,z: 84 },
+    { x: 112,z: 96 },
+];
+
+
 async function main() {
     const canvas = document.getElementById("glCanvas");
     const gl = canvas.getContext("webgl");
@@ -133,15 +156,23 @@ async function main() {
         return;
     }
 
-    const terrain = createTerrain(60, 1);
-    const flowers = createFlowers(terrain.getHeight, 120, 60);
+    const terrain = createTerrain(120, 1);
+    const flowers = createFlowers(terrain.getHeight, terrain.getBaseHeight, 300, 120);
     const flowerBuffers = initFlowerBuffers(gl);
-    const river = createRiver(terrain.getHeight, 60);
+
+    const trees = createTrees(terrain.getHeight, terrain.getBaseHeight, RIVER_PTS, 80, 120);
+    const treeBuffers = initTreeBuffers(gl);
+
+    const river = createRiver(terrain.getBaseHeight, 120);
     const riverBuffers = initRiverBuffers(gl, river);
 
-    const pebbles = createRiverPebbles(terrain.getHeight, river);
+    const pebbles = createRiverPebbles(terrain.getHeight, terrain.getBaseHeight, river);
     const pebbleBuffers = initPebbleBuffers(gl);
     const waterTexture = await loadTexture(gl, "./textures/water.jpg");
+
+    const skyboxBuffers = initSkybox(gl);
+    const ferrisWheel = initFerrisWheel(gl);
+    const birdBuffers = initBirdBuffers(gl);
 
     const terrainBuffers = {
         vbo: gl.createBuffer(),
@@ -168,16 +199,32 @@ async function main() {
 
     let activeCamera = cameraStatic;
 
-    cameraStatic.position = [0, 2, 6];
-    cameraOrbit.position = [6, 2, 0];
-    cameraCabin.position = [0, 0.5, 2];
+    cameraStatic.position = [0, 20, 35];
+    cameraStatic.target   = [0, 0, 0];
+    cameraStatic.isOrbit  = false;
+
+    cameraOrbit.target    = [0, 2, 0];  
+    cameraOrbit.distance  = 25;
+    cameraOrbit.pitch     = 0.4;
+    cameraOrbit.targetPitch = 0.4;
+    cameraOrbit.isOrbit   = true;
+
+    cameraCabin.isOrbit   = false; 
 
     window.addEventListener("keydown", (e) => {
-
         if (e.key === "1") activeCamera = cameraStatic;
         if (e.key === "2") activeCamera = cameraOrbit;
         if (e.key === "3") activeCamera = cameraCabin;
 
+        const speed = 1.0;
+        if (activeCamera === cameraStatic) {
+            if (e.key === "ArrowUp")    { cameraStatic.position[1] += speed; cameraStatic.target[1] += speed; }
+            if (e.key === "ArrowDown")  { cameraStatic.position[1] -= speed; cameraStatic.target[1] -= speed; }
+            if (e.key === "ArrowLeft")  { cameraStatic.position[0] -= speed; cameraStatic.target[0] -= speed; }
+            if (e.key === "ArrowRight") { cameraStatic.position[0] += speed; cameraStatic.target[0] += speed; }
+            if (e.key === "w") { cameraStatic.position[2] -= speed; cameraStatic.target[2] -= speed; }
+            if (e.key === "s") { cameraStatic.position[2] += speed; cameraStatic.target[2] += speed; }
+        }
     });
 
     let isDragging = false;
@@ -196,21 +243,29 @@ async function main() {
 
     window.addEventListener("mousemove", (e) => {
         if (!isDragging) return;
-
         const dx = e.clientX - lastX;
         const dy = e.clientY - lastY;
-
         lastX = e.clientX;
         lastY = e.clientY;
 
-        activeCamera.targetYaw += dx * activeCamera.sensitivity;
-        activeCamera.targetPitch += dy * activeCamera.sensitivity;
-
-        activeCamera.targetPitch = Math.max(
-            -1.2,
-            Math.min(1.2, activeCamera.targetPitch)
-        );
+        if (activeCamera.isOrbit) {
+            activeCamera.targetYaw   += dx * activeCamera.sensitivity;
+            activeCamera.targetPitch += dy * activeCamera.sensitivity;
+            activeCamera.targetPitch = Math.max(-1.2, Math.min(1.2, activeCamera.targetPitch));
+        } else {
+            activeCamera.targetYaw   = (activeCamera.targetYaw   || 0) + dx * 0.005;
+            activeCamera.targetPitch = (activeCamera.targetPitch || 0) + dy * 0.005;
+            activeCamera.targetPitch = Math.max(-0.8, Math.min(0.8, activeCamera.targetPitch));
+            const yaw   = activeCamera.targetYaw;
+            const pitch = activeCamera.targetPitch;
+            activeCamera.target = [
+                activeCamera.position[0] + Math.sin(yaw) * Math.cos(pitch),
+                activeCamera.position[1] - Math.sin(pitch),
+                activeCamera.position[2] - Math.cos(yaw) * Math.cos(pitch)
+            ];
+        }
     });
+
 
     if (!gl) {
         alert("WebGL not supported");
@@ -252,66 +307,23 @@ async function main() {
     const uTime    = gl.getUniformLocation(program, "uTime");
     const uIsWater = gl.getUniformLocation(program, "uIsWater");
 
-    gl.uniform3fv(uLightPos, [5, 5, 5]);
+    const uIsFlower = gl.getUniformLocation(program, "uIsFlower");
+
+    const vsSkySource = await loadShaderSource("./shaders/skybox/vertex.glsl");
+    const fsSkySource = await loadShaderSource("./shaders/skybox/fragment.glsl");
+    const vsSky = createShader(gl, gl.VERTEX_SHADER, vsSkySource);
+    const fsSky = createShader(gl, gl.FRAGMENT_SHADER, fsSkySource);
+    const skyboxProgram = createProgram(gl, vsSky, fsSky);
+
+    const aPositionSky  = gl.getAttribLocation(skyboxProgram, "aPosition");
+    const uViewSky      = gl.getUniformLocation(skyboxProgram, "uView");
+    const uProjectionSky = gl.getUniformLocation(skyboxProgram, "uProjection");
+
+    const cloudBuffers = initCloudBuffers(gl);
+    const uIsCloud = gl.getUniformLocation(program, "uIsCloud");
+
+    gl.uniform3fv(uLightPos, [50, 15, 10]); 
     gl.uniform3fv(uViewPos, [0, 0, 4]);
-
-    const cubeVertices = new Float32Array([
-        // front
-        -0.5,-0.5, 0.5,  0.5,-0.5, 0.5,  0.5, 0.5, 0.5,
-        -0.5,-0.5, 0.5,  0.5, 0.5, 0.5, -0.5, 0.5, 0.5,
-
-        -0.5,-0.5,-0.5, -0.5, 0.5,-0.5,  0.5, 0.5,-0.5,
-        -0.5,-0.5,-0.5,  0.5, 0.5,-0.5,  0.5,-0.5,-0.5,
-
-        -0.5,-0.5,-0.5, -0.5,-0.5, 0.5, -0.5, 0.5, 0.5,
-        -0.5,-0.5,-0.5, -0.5, 0.5, 0.5, -0.5, 0.5,-0.5,
-
-        0.5,-0.5,-0.5,  0.5, 0.5,-0.5,  0.5, 0.5, 0.5,
-        0.5,-0.5,-0.5,  0.5, 0.5, 0.5,  0.5,-0.5, 0.5,
-
-        -0.5, 0.5,-0.5, -0.5, 0.5, 0.5,  0.5, 0.5, 0.5,
-        -0.5, 0.5,-0.5,  0.5, 0.5, 0.5,  0.5, 0.5,-0.5,
-
-        -0.5,-0.5,-0.5,  0.5,-0.5,-0.5,  0.5,-0.5, 0.5,
-        -0.5,-0.5,-0.5,  0.5,-0.5, 0.5, -0.5,-0.5, 0.5
-    ]);
-
-    const cubeNormals = new Float32Array([
-        0,0,1, 0,0,1, 0,0,1,
-        0,0,1, 0,0,1, 0,0,1,
-
-        0,0,-1, 0,0,-1, 0,0,-1,
-        0,0,-1, 0,0,-1, 0,0,-1,
-
-        -1,0,0, -1,0,0, -1,0,0,
-        -1,0,0, -1,0,0, -1,0,0,
-
-        1,0,0, 1,0,0, 1,0,0,
-        1,0,0, 1,0,0, 1,0,0,
-
-        0,1,0, 0,1,0, 0,1,0,
-        0,1,0, 0,1,0, 0,1,0,
-
-        0,-1,0, 0,-1,0, 0,-1,0,
-        0,-1,0, 0,-1,0, 0,-1,0
-    ]);
-
-    const cubeNormalBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, cubeNormalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, cubeNormals, gl.STATIC_DRAW);
-
-    const cubeBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, cubeBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, cubeVertices, gl.STATIC_DRAW);
-
-    const groundVertices = new Float32Array([
-        -5,0,-5, 5,0,-5, 5,0,5,
-        -5,0,-5, 5,0,5, -5,0,5
-    ]);
-
-    const groundBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, groundBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, groundVertices, gl.STATIC_DRAW);
 
     const view = new Float32Array([
         1,0,0,0,
@@ -320,93 +332,54 @@ async function main() {
         0,0,-4,1
     ]);
 
-    const projection = new Float32Array([
-        1,0,0,0,
-        0,1,0,0,
-        0,0,-1,-1,
-        0,0,-0.2,0
-    ]);
+    const aspect = canvas.width / canvas.height;
+    const projection = makePerspective(Math.PI / 3, aspect, 0.1, 200.0);
 
     gl.uniformMatrix4fv(uView, false, view);
     gl.uniformMatrix4fv(uProjection, false, projection);
 
-    gl.clearColor(0,0,0,1);
+    gl.clearColor(0.45, 0.25, 0.1, 1.0);
 
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    const t = performance.now() * 0.001;  
-    gl.uniform1f(uTime, t);      
+    const t = performance.now() * 0.001;
+    gl.uniform1f(uTime, t);
     gl.uniform1i(uIsWater, 0);
-
-    renderTerrain(gl, terrainBuffers, terrain, aPosition, aNormal, aTexCoord,
-              uModel, uObjectColor, uTexture, uUseTexture, grassTexture);
-
-    cameraOrbit.position = [
-        Math.cos(t * 0.5) * 6,
-        2,
-        Math.sin(t * 0.5) * 6
-    ];
 
     activeCamera.update();
     gl.uniformMatrix4fv(uView, false, activeCamera.getViewMatrix());
 
-    const wheelAngle = t * 0.5;
+    renderSkybox(gl, skyboxBuffers, skyboxProgram, aPositionSky, uViewSky, uProjectionSky, activeCamera.getViewMatrix(), projection);
+    gl.useProgram(program);
 
-    const hubModel = new Float32Array([
-        Math.cos(wheelAngle),0,Math.sin(wheelAngle),0,
-        0,1,0,0,
-        -Math.sin(wheelAngle),0,Math.cos(wheelAngle),0,
-        0,0,0,1
-    ]);
+    gl.uniformMatrix4fv(uProjection, false, projection);
+    gl.uniformMatrix4fv(uView, false, activeCamera.getViewMatrix());
+    gl.uniform1i(uIsCloud, 0);
+    gl.uniform1i(uIsWater, 0);
+    gl.uniform1i(uIsFlower, 0);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, cubeNormalBuffer);
-    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aNormal);
+    renderTerrain(gl, terrainBuffers, terrain, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uTexture, uUseTexture, grassTexture);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, cubeBuffer);
-    gl.vertexAttribPointer(positionLocation,3,gl.FLOAT,false,0,0);
-    gl.enableVertexAttribArray(positionLocation);
+    const wheelAngle = t * 0.4;
+    const wheelPos = [10, 0, -12];
 
-    gl.uniformMatrix4fv(uModel,false,hubModel);
-    gl.uniform3fv(uObjectColor,[0.2,0.8,0.2]);
-    gl.drawArrays(gl.TRIANGLES, 0, 36);
+    renderFerrisWheel(gl, ferrisWheel, wheelAngle, wheelPos, aPosition, aNormal, aTexCoord,uModel, uObjectColor, uUseTexture);
 
-    const radius = 2.5;
+    const cabinA = wheelAngle;
+    cameraCabin.position = [
+        wheelPos[0] + Math.cos(cabinA) * 4.0,
+        wheelPos[1] + 5.0 + Math.sin(cabinA) * 4.0,
+        wheelPos[2]
+    ];
+    cameraCabin.target = [wheelPos[0], wheelPos[1] + 5.0, wheelPos[2]];
 
-    for (let i = 0; i < 8; i++) {
-
-        const a = i / 8 * Math.PI * 2;
-
-        const x = Math.cos(a + wheelAngle) * radius;
-        const z = Math.sin(a + wheelAngle) * radius;
-
-        let model = new Float32Array([
-            1,0,0,0,
-            0,1,0,0,
-            0,0,1,0,
-            x,0,z,1
-        ]);
-
-        const c = Math.cos(-(a + wheelAngle));
-        const s = Math.sin(-(a + wheelAngle));
-
-        model[0] = c; model[2] = s;
-        model[8] = -s; model[10] = c;
-
-        gl.uniformMatrix4fv(uModel, false, model);
-        gl.uniform3fv(uObjectColor, [0.7, 0.7, 0.7]);
-
-        gl.drawArrays(gl.TRIANGLES, 0, 36);
-
-        if (i === 0) {
-            cameraCabin.position = [x, 0.5, z];
-            cameraCabin.target = [0, 0, 0];
-        }
-    }
-    renderFlowers(gl, flowerBuffers, flowers, [-30, 0, -30], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture);
-    renderRiver(gl, riverBuffers, river, [-30, 0, -30], t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uTime, waterTexture, uTexture);
-    renderPebbles(gl, pebbleBuffers, pebbles, [-30, 0, -30], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater);
+    renderFlowers(gl, flowerBuffers, flowers, [-60, 0, -60], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsFlower);
+    renderRiver(gl, riverBuffers, river, [-60, 0, -60], t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uTime, waterTexture, uTexture);
+    renderPebbles(gl, pebbleBuffers, pebbles, [-60, 0, -60], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater);
+    renderClouds(gl, cloudBuffers, t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower, uIsCloud, uTime);
+    renderBirds(gl, birdBuffers, t, aPosition, aNormal, aTexCoord,uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower);
+    renderTrees(gl, treeBuffers, trees, [-60, 0, -60], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower);
 
     requestAnimationFrame(render);
 }

@@ -1,14 +1,14 @@
 const controlPoints = [
-    { x:  5, z:  2 },
-    { x: 10, z:  8 },
-    { x: 14, z: 15 },
-    { x: 18, z: 22 },
-    { x: 22, z: 28 },
-    { x: 28, z: 33 },
-    { x: 35, z: 36 },
-    { x: 42, z: 38 },
-    { x: 50, z: 42 },
-    { x: 56, z: 48 },
+    { x: 10,  z:  4  },
+    { x: 20,  z: 16  },
+    { x: 28,  z: 30  },
+    { x: 36,  z: 44  },
+    { x: 44,  z: 56  },
+    { x: 56,  z: 66  },
+    { x: 70,  z: 72  },
+    { x: 84,  z: 76  },
+    { x: 100, z: 84  },
+    { x: 112, z: 96  },
 ];
 
 
@@ -33,7 +33,7 @@ function buildPath(stepsPerSegment = 20) {
     return path;
 }
 
-export function createRiver(getHeight, terrainSize = 60) {
+export function createRiver(getHeight, terrainSize = 120) {
     const vertices  = [];
     const normals   = [];
     const texcoords = [];
@@ -78,12 +78,12 @@ export function createRiver(getHeight, terrainSize = 60) {
     };
 }
 
-export function createRiverPebbles(getHeight, river) {
+export function createRiverPebbles(getHeight, getBaseHeight, river) {
     const pebbles = [];
     const path = river.path;
     const width = river.width;
 
-    for (let i = 0; i < path.length; i += 4) {
+    for (let i = 0; i < path.length; i += 10) {
         const p = path[i];
         const prev = path[Math.max(0, i - 1)];
         const next = path[Math.min(path.length - 1, i + 1)];
@@ -94,86 +94,84 @@ export function createRiverPebbles(getHeight, river) {
         const px = -dz / len;
         const pz =  dx / len;
 
-        const count = 1 + Math.floor(Math.abs(Math.sin(i * 1.7)) * 2);
+        for (let side = -1; side <= 1; side += 2) {
+            const clusterJitter = Math.sin(i * 2.3) * 0.3;
+            const clusterOffset = width * 0.5 + 0.3 + clusterJitter;
 
-        for (let j = 0; j < count; j++) {
-            const jitter = Math.sin(i * 3.7 + j * 7.3) * 0.3;
-            const offset = width * 0.5 + jitter; // БЕЗ j * щось
+            const cx = p.x + px * side * clusterOffset;
+            const cz = p.z + pz * side * clusterOffset;
 
-            const lx = p.x + px * offset;
-            const lz = p.z + pz * offset;
-            pebbles.push({
-                x: lx, y: getHeight(lx, lz) + 0.02,
-                z: lz,
-                scaleX: 0.08 + Math.abs(Math.sin(i * 2.1 + j)) * 0.18,
-                scaleY: 0.12 + Math.abs(Math.cos(i + j * 3)) * 0.1, 
-                scaleZ: 0.08 + Math.abs(Math.sin(i * 1.3 + j * 2)) * 0.15,
-                angle: Math.sin(i * 1.1 + j) * Math.PI,
-                seed: i * 10 + j
-            });
+            const clusterSize = 2 + Math.floor(Math.abs(Math.sin(i * 1.7 + side)) * 2);
 
-            const rx = p.x - px * offset;
-            const rz = p.z - pz * offset;
-            pebbles.push({
-                x: rx, y: getHeight(rx, rz) + 0.02,
-                z: rz,
-                scaleX: 0.08 + Math.abs(Math.cos(i * 1.7 + j)) * 0.18,
-                scaleY: 0.12 + Math.abs(Math.sin(i * 2 + j)) * 0.1, 
-                scaleZ: 0.08 + Math.abs(Math.cos(i + j * 1.5)) * 0.15,
-                angle: Math.cos(i * 0.9 + j) * Math.PI,
-                seed: i * 10 + j + 1000
-            });
+            for (let k = 0; k < clusterSize; k++) {
+                const spread = 0.3;
+                const kx = cx + Math.sin(k * 2.1 + i * 0.7) * spread;
+                const kz = cz + Math.cos(k * 1.9 + i * 0.5) * spread;
+
+                // беремо максимум з двох висот — камінець завжди на поверхні
+                const y0 = getHeight(kx, kz);
+                const y1 = getHeight(kx + 0.2, kz);
+                const y2 = getHeight(kx - 0.2, kz);
+                const y3 = getHeight(kx, kz + 0.2);
+                const y4 = getHeight(kx, kz - 0.2);
+                const y = Math.min(y0, y1, y2, y3, y4) + 0.05;
+
+                const baseSize = 0.15 + Math.abs(Math.sin(i * 1.3 + k * 3.7)) * 0.4;
+
+                pebbles.push({
+                    x: kx, y,
+                    z: kz,
+                    scaleX: baseSize * (0.7 + Math.abs(Math.sin(i + k * 2.3)) * 0.6),
+                    scaleY: baseSize * 0.55,
+                    scaleZ: baseSize * (0.7 + Math.abs(Math.cos(i + k * 1.7)) * 0.6),
+                    angle: Math.sin(i * 1.1 + k) * Math.PI,
+                    seed: i * 100 + k + (side > 0 ? 5000 : 0),
+                    brown: Math.sin(i * 1.1 + k) > 0,
+                    shape: Math.floor(Math.abs(Math.sin(i * 2.7 + k * 4.1)) * 2) 
+                });
+            }
         }
     }
     return pebbles;
 }
 
 export function initPebbleBuffers(gl) {
-    const vertices = [];
-    const normals  = [];
-    const texcoords = [];
-
-    const latSegs = 8;
-    const lonSegs = 12;
-
-    for (let lat = 0; lat < latSegs; lat++) {
-        const a1 = (lat / latSegs) * Math.PI;
-        const a2 = ((lat + 1) / latSegs) * Math.PI;
-
-        for (let lon = 0; lon < lonSegs; lon++) {
-            const b1 = (lon / lonSegs) * Math.PI * 2;
-            const b2 = ((lon + 1) / lonSegs) * Math.PI * 2;
-
-            const pts = [
-                [Math.sin(a1)*Math.cos(b1), Math.cos(a1)*0.6, Math.sin(a1)*Math.sin(b1)],
-                [Math.sin(a1)*Math.cos(b2), Math.cos(a1)*0.6, Math.sin(a1)*Math.sin(b2)],
-                [Math.sin(a2)*Math.cos(b1), Math.cos(a2)*0.6, Math.sin(a2)*Math.sin(b1)],
-                [Math.sin(a2)*Math.cos(b2), Math.cos(a2)*0.6, Math.sin(a2)*Math.sin(b2)],
-            ];
-
-            [[0,2,1],[1,2,3]].forEach(tri => {
-                tri.forEach(idx => {
-                    vertices.push(...pts[idx]);
-                    normals.push(...pts[idx]); 
-                    texcoords.push(0, 0);
+    const types = [0.6, 0.85].map(yScale => { 
+        const vertices = [], normals = [], texcoords = [];
+        const latSegs = 8, lonSegs = 12;
+        for (let lat = 0; lat < latSegs; lat++) {
+            const a1 = (lat / latSegs) * Math.PI;
+            const a2 = ((lat + 1) / latSegs) * Math.PI;
+            for (let lon = 0; lon < lonSegs; lon++) {
+                const b1 = (lon / lonSegs) * Math.PI * 2;
+                const b2 = ((lon + 1) / lonSegs) * Math.PI * 2;
+                const pts = [
+                    [Math.sin(a1)*Math.cos(b1), Math.cos(a1)*yScale, Math.sin(a1)*Math.sin(b1)],
+                    [Math.sin(a1)*Math.cos(b2), Math.cos(a1)*yScale, Math.sin(a1)*Math.sin(b2)],
+                    [Math.sin(a2)*Math.cos(b1), Math.cos(a2)*yScale, Math.sin(a2)*Math.sin(b1)],
+                    [Math.sin(a2)*Math.cos(b2), Math.cos(a2)*yScale, Math.sin(a2)*Math.sin(b2)],
+                ];
+                [[0,2,1],[1,2,3]].forEach(tri => {
+                    tri.forEach(idx => {
+                        vertices.push(...pts[idx]);
+                        normals.push(...pts[idx]);
+                        texcoords.push(0, 0);
+                    });
                 });
-            });
+            }
         }
-    }
-
-    const vbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-
-    const nbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
-
-    const tbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, tbo);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texcoords), gl.STATIC_DRAW);
-
-    return { vbo, nbo, tbo, count: vertices.length / 3 };
+        const vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+        const nbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+        const tbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, tbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texcoords), gl.STATIC_DRAW);
+        return { vbo, nbo, tbo, count: vertices.length / 3 };
+    });
+    return types;
 }
 
 export function initRiverBuffers(gl, river) {
@@ -241,21 +239,24 @@ export function renderPebbles(gl, pebbleBuffers, pebbles, terrainOffset,
     gl.uniform1i(uIsWater, 0);
     gl.uniform1i(uUseTexture, 0);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, pebbleBuffers.vbo);
-    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aPosition);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, pebbleBuffers.nbo);
-    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aNormal);
-
-    if (aTexCoord >= 0) {
-        gl.bindBuffer(gl.ARRAY_BUFFER, pebbleBuffers.tbo);
-        gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(aTexCoord);
-    }
-
     for (const pebble of pebbles) {
+        const buf = pebbleBuffers[pebble.shape ?? 0];
+        if (!buf) continue;
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf.vbo);
+        gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(aPosition);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf.nbo);
+        gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(aNormal);
+
+        if (aTexCoord >= 0) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, buf.tbo);
+            gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(aTexCoord);
+        }
+
         const wx = pebble.x + terrainOffset[0];
         const wy = pebble.y + terrainOffset[1];
         const wz = pebble.z + terrainOffset[2];
@@ -266,9 +267,11 @@ export function renderPebbles(gl, pebbleBuffers, pebbles, terrainOffset,
         const c  = Math.cos(pebble.angle);
         const s  = Math.sin(pebble.angle);
 
-        const gray = 0.42 + (pebble.seed % 9) * 0.04;
-        const warm = (pebble.seed % 3 === 0) ? 0.05 : 0.0;
-        gl.uniform3fv(uObjectColor, [gray + warm, gray - 0.02, gray - 0.04]);
+        const gray = 0.45 + (pebble.seed % 9) * 0.03;
+        const color = pebble.brown
+            ? [0.55 + gray * 0.2, 0.38 + gray * 0.1, 0.22]
+            : [gray, gray - 0.02, gray - 0.04];
+        gl.uniform3fv(uObjectColor, color);
 
         const model = new Float32Array([
             sx*c,  0, sx*s, 0,
@@ -277,6 +280,6 @@ export function renderPebbles(gl, pebbleBuffers, pebbles, terrainOffset,
             wx, wy, wz, 1
         ]);
         gl.uniformMatrix4fv(uModel, false, model);
-        gl.drawArrays(gl.TRIANGLES, 0, pebbleBuffers.count);
+        gl.drawArrays(gl.TRIANGLES, 0, buf.count);
     }
 }
