@@ -1,3 +1,12 @@
+/**
+ * @brief Cloud configuration data for movement and positioning
+ * @type {Array<Object>}
+ * @property {number} x - Center X position of cloud movement path
+ * @property {number} y - Y position (altitude) of cloud
+ * @property {number} z - Center Z position of cloud movement path
+ * @property {number} speed - Movement speed (units per second)
+ * @property {number} offset - Phase offset for animation (radians)
+ */
 const CLOUD_CONFIGS = [
     { x: -20, y: 45, z: -20, speed: 0.8,  offset: 0.0 },
     { x:  15, y: 50, z: -30, speed: 0.6,  offset: 2.1 },
@@ -16,6 +25,18 @@ const CLOUD_CONFIGS = [
     { x: -25, y: 50, z:  50, speed: 0.5,  offset: 8.3 },
 ];
 
+/**
+ * @brief Cloud parts configuration - defines the structure of a single cloud
+ * @details Each cloud is composed of multiple scaled and offset quadrilaterals
+ *          to create a fluffy, volumetric appearance
+ * @type {Array<Object>}
+ * @property {number} ox - Offset X from cloud center
+ * @property {number} oy - Offset Y from cloud center
+ * @property {number} oz - Offset Z from cloud center
+ * @property {number} sx - Scale factor in X direction
+ * @property {number} sy - Scale factor in Y direction
+ * @property {number} sz - Scale factor in Z direction
+ */
 const CLOUD_PARTS = [
     { ox: 0,    oy: 0,    oz: 0,    sx: 16.0, sy: 4.0, sz: 9.0  },
     { ox: -7.0, oy: -0.3, oz: 0.2,  sx: 12.0, sy: 3.5, sz: 7.5  },
@@ -25,8 +46,14 @@ const CLOUD_PARTS = [
     { ox: -2.5, oy:  1.5, oz: -1.5, sx:  7.0, sy: 2.5, sz: 5.0  },
 ];
 
+/**
+ * @brief Creates a single quadrilateral (quad) geometry for cloud rendering
+ * @details A quad is a simple plane with 2 triangles. Multiple scaled quads
+ *          are combined to create a fluffy cloud shape
+ * @return {Object} Object containing vertices, normals, and texcoords arrays
+ */
 function createCloudQuad() {
-    const vertices = new Float32Array([
+    const vertexArray = new Float32Array([
         -0.5, 0, -0.5,
          0.5, 0, -0.5,
          0.5, 0,  0.5,
@@ -34,80 +61,116 @@ function createCloudQuad() {
          0.5, 0,  0.5,
         -0.5, 0,  0.5,
     ]);
-    const normals = new Float32Array([
-        0,1,0, 0,1,0, 0,1,0,
-        0,1,0, 0,1,0, 0,1,0,
+    const normalArray = new Float32Array([
+        0, 1, 0, 0, 1, 0, 0, 1, 0,
+        0, 1, 0, 0, 1, 0, 0, 1, 0,
     ]);
-    const texcoords = new Float32Array([
-        0,0, 1,0, 1,1,
-        0,0, 1,1, 0,1,
+    const textureCoordArray = new Float32Array([
+        0, 0, 1, 0, 1, 1,
+        0, 0, 1, 1, 0, 1,
     ]);
-    return { vertices, normals, texcoords };
+    return { vertices: vertexArray, normals: normalArray, texcoords: textureCoordArray };
 }
 
+/**
+ * @brief Initializes GPU buffers for cloud geometry
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @return {Object} Buffer object containing VBO, NBO, TBO and vertex count
+ */
 export function initCloudBuffers(gl) {
-    const geo = createCloudQuad();
+    const cloudGeometry = createCloudQuad();
 
-    const vbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, geo.vertices, gl.STATIC_DRAW);
+    const vertexBufferObject = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferObject);
+    gl.bufferData(gl.ARRAY_BUFFER, cloudGeometry.vertices, gl.STATIC_DRAW);
 
-    const nbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
-    gl.bufferData(gl.ARRAY_BUFFER, geo.normals, gl.STATIC_DRAW);
+    const normalBufferObject = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalBufferObject);
+    gl.bufferData(gl.ARRAY_BUFFER, cloudGeometry.normals, gl.STATIC_DRAW);
 
-    const tbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, tbo);
-    gl.bufferData(gl.ARRAY_BUFFER, geo.texcoords, gl.STATIC_DRAW);
+    const textureCoordBufferObject = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBufferObject);
+    gl.bufferData(gl.ARRAY_BUFFER, cloudGeometry.texcoords, gl.STATIC_DRAW);
 
-    return { vbo, nbo, tbo, count: 6 };
+    return {
+        vbo: vertexBufferObject,
+        nbo: normalBufferObject,
+        tbo: textureCoordBufferObject,
+        count: 6
+    };
 }
 
-export function renderClouds(gl, cloudBuffers, t,
-                              aPosition, aNormal, aTexCoord,
-                              uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower, uIsCloud, uTime) {
-    gl.uniform1i(uIsWater, 0);
-    gl.uniform1i(uIsFlower, 0);
-    gl.uniform1i(uUseTexture, 0);
-    gl.uniform1i(uIsCloud, 1);
+/**
+ * @brief Renders all clouds with alpha blending and movement animation
+ * @details Each cloud is composed of multiple scaled quads. Clouds move in sine-wave
+ *          patterns and use alpha blending for transparency. Depth writing is disabled
+ *          during cloud rendering to prevent depth buffer artifacts
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @param {Object} cloudBuffers - Buffer object from initCloudBuffers
+ * @param {number} currentTime - Current animation time in seconds
+ * @param {number} attributePosition - Position attribute location in shader
+ * @param {number} attributeNormal - Normal attribute location in shader
+ * @param {number} attributeTexCoord - Texture coordinate attribute location in shader
+ * @param {number} uniformModel - Model matrix uniform location
+ * @param {number} uniformObjectColor - Object color uniform location
+ * @param {number} uniformUseTexture - Use texture flag uniform location
+ * @param {number} uniformIsWater - Is water flag uniform location
+ * @param {number} uniformIsFlower - Is flower flag uniform location
+ * @param {number} uniformIsCloud - Is cloud flag uniform location (enables alpha in shader)
+ * @param {number} uniformTime - Time uniform location
+ * @return {void}
+ */
+export function renderClouds(gl, cloudBuffers, currentTime, attributePosition, attributeNormal, attributeTexCoord, uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater, uniformIsFlower, uniformIsCloud, uniformTime) {
+    gl.uniform1i(uniformIsWater, 0);
+    gl.uniform1i(uniformIsFlower, 0);
+    gl.uniform1i(uniformUseTexture, 0);
+    gl.uniform1i(uniformIsCloud, 1);
 
+    // Enable alpha blending for transparent clouds
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
 
+    // Bind vertex attributes
     gl.bindBuffer(gl.ARRAY_BUFFER, cloudBuffers.vbo);
-    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(attributePosition, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(attributePosition);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, cloudBuffers.nbo);
-    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aNormal);
+    gl.vertexAttribPointer(attributeNormal, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(attributeNormal);
 
-    if (aTexCoord >= 0) {
+    if (attributeTexCoord >= 0) {
         gl.bindBuffer(gl.ARRAY_BUFFER, cloudBuffers.tbo);
-        gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(aTexCoord);
+        gl.vertexAttribPointer(attributeTexCoord, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attributeTexCoord);
     }
 
-    for (const cloud of CLOUD_CONFIGS) {
-        const wx = cloud.x + Math.sin(t * cloud.speed + cloud.offset) * 6.0;
-        const wy = cloud.y + Math.sin(t * 0.08 + cloud.offset) * 0.3;
-        const wz = cloud.z + Math.cos(t * cloud.speed * 0.5 + cloud.offset) * 2.0;
+    // Render each cloud
+    for (const cloudConfig of CLOUD_CONFIGS) {
+        // Calculate cloud position with sine-wave movement
+        const worldPositionX = cloudConfig.x + Math.sin(currentTime * cloudConfig.speed + cloudConfig.offset) * 6.0;
+        const worldPositionY = cloudConfig.y + Math.sin(currentTime * 0.08 + cloudConfig.offset) * 0.3;
+        const worldPositionZ = cloudConfig.z + Math.cos(currentTime * cloudConfig.speed * 0.5 + cloudConfig.offset) * 2.0;
 
-        for (const part of CLOUD_PARTS) {
-            const model = new Float32Array([
-                part.sx, 0, 0, 0,
-                0, part.sy, 0, 0,
-                0, 0, part.sz, 0,
-                wx + part.ox, wy + part.oy, wz + part.oz, 1
+        // Render each part (quad) of the cloud
+        for (const cloudPart of CLOUD_PARTS) {
+            const modelMatrix = new Float32Array([
+                cloudPart.sx, 0, 0, 0,
+                0, cloudPart.sy, 0, 0,
+                0, 0, cloudPart.sz, 0,
+                worldPositionX + cloudPart.ox, worldPositionY + cloudPart.oy, worldPositionZ + cloudPart.oz, 1
             ]);
-            gl.uniformMatrix4fv(uModel, false, model);
-            gl.uniform3fv(uObjectColor, [0.95, 0.88, 0.82]);
+            gl.uniformMatrix4fv(uniformModel, false, modelMatrix);
+            
+            // Set cloud color (off-white)
+            gl.uniform3fv(uniformObjectColor, [0.95, 0.88, 0.82]);
             gl.drawArrays(gl.TRIANGLES, 0, cloudBuffers.count);
         }
     }
 
-    gl.uniform1i(uIsCloud, 0);
+    // Restore rendering state
+    gl.uniform1i(uniformIsCloud, 0);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
 }

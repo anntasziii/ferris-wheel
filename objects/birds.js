@@ -1,170 +1,309 @@
-
+/**
+ * @brief Bird configuration data for flight paths and animation
+ * @type {Array<Object>}
+ * @property {number} x - Center X position of circular flight path
+ * @property {number} y - Center Y position of circular flight path
+ * @property {number} z - Center Z position of circular flight path
+ * @property {number} speed - Angular velocity of circular motion (radians per second)
+ * @property {number} radius - Radius of circular flight path
+ * @property {number} offset - Phase offset for animation (radians)
+ * @property {number} height - Vertical oscillation frequency parameter
+ */
 const BIRD_CONFIGS = [
     { x: -5, y: 18, z: -5,  speed: 0.4, radius: 15, offset: 0.0,  height: 0.5 },
     { x:  3, y: 20, z: -8,  speed: 0.3, radius: 20, offset: 2.1,  height: 0.3 },
     { x: -2, y: 16, z:  3,  speed: 0.5, radius: 12, offset: 4.3,  height: 0.8 },
-    { x:  5, y: 22, z: -3,  speed: 0.35,radius: 18, offset: 1.5,  height: 0.4 },
-    { x: -8, y: 19, z:  5,  speed: 0.25,radius: 14, offset: 3.7,  height: 0.6 },
-    { x:  0, y: 17, z: -10, speed: 0.45,radius: 16, offset: 5.2,  height: 0.3 },
+    { x:  5, y: 22, z: -3,  speed: 0.35, radius: 18, offset: 1.5,  height: 0.4 },
+    { x: -8, y: 19, z:  5,  speed: 0.25, radius: 14, offset: 3.7,  height: 0.6 },
+    { x:  0, y: 17, z: -10, speed: 0.45, radius: 16, offset: 5.2,  height: 0.3 },
 ];
 
+/**
+ * @brief Creates procedural bird geometry with body, head, tail, and wings
+ * @details Constructs a simple bird model using triangles with:
+ *          - Body: elongated ellipsoid shape
+ *          - Head: spherical approximation
+ *          - Tail: four feather-like triangles
+ *          - Wings: left and right wings with feather segments
+ * @return {Object} Object containing vertices, normals, texcoords arrays and vertex count
+ */
 function createBirdGeometry() {
-    const vertices = [];
-    const normals  = [];
-    const texcoords = [];
+    const vertexArray = [];
+    const normalArray  = [];
+    const texCoordArray = [];
 
-    function addTri(v0, v1, v2, nx, ny, nz) {
-        vertices.push(...v0, ...v1, ...v2);
-        for (let i = 0; i < 3; i++) normals.push(nx, ny, nz);
-        texcoords.push(0,0, 0.5,1, 1,0);
+    /**
+     * @brief Adds a triangle to the bird geometry
+     * @param {Array<number>} vertex0 - First vertex [x, y, z]
+     * @param {Array<number>} vertex1 - Second vertex [x, y, z]
+     * @param {Array<number>} vertex2 - Third vertex [x, y, z]
+     * @param {number} normalX - Normal vector X component
+     * @param {number} normalY - Normal vector Y component
+     * @param {number} normalZ - Normal vector Z component
+     * @return {void}
+     */
+    function addTriangle(vertex0, vertex1, vertex2, normalX, normalY, normalZ) {
+        vertexArray.push(...vertex0, ...vertex1, ...vertex2);
+        for (let i = 0; i < 3; i++) normalArray.push(normalX, normalY, normalZ);
+        texCoordArray.push(0, 0, 0.5, 1, 1, 0);
     }
 
-    const bl = 0.9, bw = 0.07, bh = 0.08; 
+    const bodyLength = 0.9;
+    const bodyWidth = 0.07;
+    const bodyHeight = 0.08;
 
-    addTri([-bl*0.15, 0, 0], [0, bh, bw*0.5], [bl*0.5, 0, 0], 0,1,0);
-    addTri([-bl*0.15, 0, 0], [0, bh, -bw*0.5], [bl*0.5, 0, 0], 0,1,0);
-    addTri([-bl*0.15, 0, 0], [bl*0.5, 0, 0], [0, -bh*0.4, bw*0.5], 0,-1,0);
-    addTri([-bl*0.15, 0, 0], [bl*0.5, 0, 0], [0, -bh*0.4, -bw*0.5], 0,-1,0);
+    // BODY
+    addTriangle(
+        [-bodyLength*0.15, 0, 0],
+        [0, bodyHeight, bodyWidth*0.5],
+        [bodyLength*0.5, 0, 0],
+        0, 1, 0
+    );
+    addTriangle(
+        [-bodyLength*0.15, 0, 0],
+        [0, bodyHeight, -bodyWidth*0.5],
+        [bodyLength*0.5, 0, 0],
+        0, 1, 0
+    );
+    addTriangle(
+        [-bodyLength*0.15, 0, 0],
+        [bodyLength*0.5, 0, 0],
+        [0, -bodyHeight*0.4, bodyWidth*0.5],
+        0, -1, 0
+    );
+    addTriangle(
+        [-bodyLength*0.15, 0, 0],
+        [bodyLength*0.5, 0, 0],
+        [0, -bodyHeight*0.4, -bodyWidth*0.5],
+        0, -1, 0
+    );
 
-    const hx = bl*0.52, hr = 0.045;
+    // HEAD
+    const headPositionX = bodyLength*0.52;
+    const headRadius = 0.045;
     for (let i = 0; i < 10; i++) {
-        const a1 = (i/10)*Math.PI*2, a2 = ((i+1)/10)*Math.PI*2;
-        addTri(
-            [hx, hr*0.2, 0],
-            [hx + Math.cos(a1)*hr, Math.sin(a1)*hr, Math.sin(a1)*hr*0.4],
-            [hx + Math.cos(a2)*hr, Math.sin(a2)*hr, Math.sin(a2)*hr*0.4],
-            Math.cos((a1+a2)*0.5), 0.5, 0
+        const angle1 = (i/10)*Math.PI*2;
+        const angle2 = ((i+1)/10)*Math.PI*2;
+        addTriangle(
+            [headPositionX, headRadius*0.2, 0],
+            [headPositionX + Math.cos(angle1)*headRadius, Math.sin(angle1)*headRadius, Math.sin(angle1)*headRadius*0.4],
+            [headPositionX + Math.cos(angle2)*headRadius, Math.sin(angle2)*headRadius, Math.sin(angle2)*headRadius*0.4],
+            Math.cos((angle1+angle2)*0.5), 0.5, 0
         );
     }
 
-    addTri([hx+hr, hr*0.1, 0], [hx+hr*3.0, -hr*0.05, 0], [hx+hr, -hr*0.05, hr*0.05], 1,0.2,0);
-    addTri([hx+hr, hr*0.1, 0], [hx+hr, -hr*0.05, -hr*0.05], [hx+hr*3.0, -hr*0.05, 0], 1,0.2,0);
+    // BEAK
+    addTriangle(
+        [headPositionX+headRadius, headRadius*0.1, 0],
+        [headPositionX+headRadius*3.0, -headRadius*0.05, 0],
+        [headPositionX+headRadius, -headRadius*0.05, headRadius*0.05],
+        1, 0.2, 0
+    );
+    addTriangle(
+        [headPositionX+headRadius, headRadius*0.1, 0],
+        [headPositionX+headRadius, -headRadius*0.05, -headRadius*0.05],
+        [headPositionX+headRadius*3.0, -headRadius*0.05, 0],
+        1, 0.2, 0
+    );
 
-    const tx = -bl*0.15;
-    addTri([tx, 0, 0], [tx-0.35, bh*0.15, 0.14], [tx-0.25, 0, 0.09], -1,0,0.2);
-    addTri([tx, 0, 0], [tx-0.35, bh*0.15, -0.14], [tx-0.25, 0, -0.09], -1,0,-0.2);
-    addTri([tx, 0, 0], [tx-0.25, 0, 0.09], [tx-0.3, -bh*0.15, 0], -1,-0.1,0);
-    addTri([tx, 0, 0], [tx-0.3, -bh*0.15, 0], [tx-0.25, 0, -0.09], -1,-0.1,0);
+    // TAIL
+    const tailPositionX = -bodyLength*0.15;
+    addTriangle(
+        [tailPositionX, 0, 0],
+        [tailPositionX-0.35, bodyHeight*0.15, 0.14],
+        [tailPositionX-0.25, 0, 0.09],
+        -1, 0, 0.2
+    );
+    addTriangle(
+        [tailPositionX, 0, 0],
+        [tailPositionX-0.35, bodyHeight*0.15, -0.14],
+        [tailPositionX-0.25, 0, -0.09],
+        -1, 0, -0.2
+    );
+    addTriangle(
+        [tailPositionX, 0, 0],
+        [tailPositionX-0.25, 0, 0.09],
+        [tailPositionX-0.3, -bodyHeight*0.15, 0],
+        -1, -0.1, 0
+    );
+    addTriangle(
+        [tailPositionX, 0, 0],
+        [tailPositionX-0.3, -bodyHeight*0.15, 0],
+        [tailPositionX-0.25, 0, -0.09],
+        -1, -0.1, 0
+    );
 
-    const wz = bw*0.5;
+    // WINGS
+    const wingOffsetZ = bodyWidth*0.5;
 
-    const lWing = [
-        [0.12, 0.01, wz],
-        [0.02, 0.06, wz+0.25], 
-        [-0.04, 0.09, wz+0.5], 
-        [-0.06, 0.09, wz+0.75],
-        [-0.04, 0.07, wz+1.0],   
-        [-0.06, 0.05, wz+1.2],   
-        [-0.02, 0.02, wz+1.35], 
+    /**
+     * @brief Left wing feather vertices
+     * @type {Array<Array<number>>}
+     */
+    const leftWingFront = [
+        [0.12, 0.01, wingOffsetZ],
+        [0.02, 0.06, wingOffsetZ+0.25],
+        [-0.04, 0.09, wingOffsetZ+0.5],
+        [-0.06, 0.09, wingOffsetZ+0.75],
+        [-0.04, 0.07, wingOffsetZ+1.0],
+        [-0.06, 0.05, wingOffsetZ+1.2],
+        [-0.02, 0.02, wingOffsetZ+1.35],
     ];
-    const lWingBack = [
-        [0.12, -0.01, wz],
-        [0.06, -0.02, wz+0.2],
-        [0.02, -0.01, wz+0.45],
-        [0.0,  0.01,  wz+0.7],
-        [-0.01, 0.03, wz+0.95],
-        [-0.03, 0.02, wz+1.15],
-        [-0.02, 0.02, wz+1.35],
+
+    /**
+     * @brief Left wing feather vertices
+     * @type {Array<Array<number>>}
+     */
+    const leftWingBack = [
+        [0.12, -0.01, wingOffsetZ],
+        [0.06, -0.02, wingOffsetZ+0.2],
+        [0.02, -0.01, wingOffsetZ+0.45],
+        [0.0,  0.01,  wingOffsetZ+0.7],
+        [-0.01, 0.03, wingOffsetZ+0.95],
+        [-0.03, 0.02, wingOffsetZ+1.15],
+        [-0.02, 0.02, wingOffsetZ+1.35],
     ];
 
-    for (let i = 0; i < lWing.length - 1; i++) {
-        addTri(lWing[i], lWing[i+1], lWingBack[i], 0, 1, 0.05);
-        addTri(lWing[i+1], lWingBack[i+1], lWingBack[i], 0, 1, 0.05);
+    // Left wing geometry
+    for (let i = 0; i < leftWingFront.length - 1; i++) {
+        addTriangle(leftWingFront[i], leftWingFront[i+1], leftWingBack[i], 0, 1, 0.05);
+        addTriangle(leftWingFront[i+1], leftWingBack[i+1], leftWingBack[i], 0, 1, 0.05);
     }
 
-    const rWing = lWing.map(p => [p[0], p[1], -p[2]]);
-    const rWingBack = lWingBack.map(p => [p[0], p[1], -p[2]]);
+    // Right wing geometry
+    const rightWingFront = leftWingFront.map(vertex => [vertex[0], vertex[1], -vertex[2]]);
+    const rightWingBack = leftWingBack.map(vertex => [vertex[0], vertex[1], -vertex[2]]);
 
-    for (let i = 0; i < rWing.length - 1; i++) {
-        addTri(rWing[i], rWingBack[i], rWing[i+1], 0, 1, -0.05);
-        addTri(rWing[i+1], rWingBack[i], rWingBack[i+1], 0, 1, -0.05);
+    for (let i = 0; i < rightWingFront.length - 1; i++) {
+        addTriangle(rightWingFront[i], rightWingBack[i], rightWingFront[i+1], 0, 1, -0.05);
+        addTriangle(rightWingFront[i+1], rightWingBack[i], rightWingBack[i+1], 0, 1, -0.05);
     }
 
     return {
-        vertices:  new Float32Array(vertices),
-        normals:   new Float32Array(normals),
-        texcoords: new Float32Array(texcoords),
-        count: vertices.length / 3
+        vertices:  new Float32Array(vertexArray),
+        normals:   new Float32Array(normalArray),
+        texcoords: new Float32Array(texCoordArray),
+        count: vertexArray.length / 3
     };
 }
 
+/**
+ * @brief Initializes GPU buffers for bird geometry
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @return {Object} Buffer object containing VBO, NBO, TBO and vertex count
+ */
 export function initBirdBuffers(gl) {
-    const geo = createBirdGeometry();
+    const birdGeometry = createBirdGeometry();
 
-    const vbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, geo.vertices, gl.STATIC_DRAW);
+    const vertexBufferObject = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBufferObject);
+    gl.bufferData(gl.ARRAY_BUFFER, birdGeometry.vertices, gl.STATIC_DRAW);
 
-    const nbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
-    gl.bufferData(gl.ARRAY_BUFFER, geo.normals, gl.STATIC_DRAW);
+    const normalBufferObject = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalBufferObject);
+    gl.bufferData(gl.ARRAY_BUFFER, birdGeometry.normals, gl.STATIC_DRAW);
 
-    const tbo = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, tbo);
-    gl.bufferData(gl.ARRAY_BUFFER, geo.texcoords, gl.STATIC_DRAW);
+    const textureCoordBufferObject = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBufferObject);
+    gl.bufferData(gl.ARRAY_BUFFER, birdGeometry.texcoords, gl.STATIC_DRAW);
 
-    return { vbo, nbo, tbo, count: geo.count };
+    return {
+        vbo: vertexBufferObject,
+        nbo: normalBufferObject,
+        tbo: textureCoordBufferObject,
+        count: birdGeometry.count
+    };
 }
 
-export function renderBirds(gl, birdBuffers, t,
-                             aPosition, aNormal, aTexCoord,
-                             uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower) {
-    gl.uniform1i(uIsWater, 0);
-    gl.uniform1i(uIsFlower, 0);
-    gl.uniform1i(uUseTexture, 0);
+/**
+ * @brief Renders all birds with circular flight paths and wing flapping animation
+ * @details Each bird follows a circular path with vertical oscillation and animated wing flapping.
+ *          The bird's orientation is calculated from flight direction, and wing flap is
+ *          modulated by a sine function for smooth animation.
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @param {Object} birdBuffers - Buffer object from initBirdBuffers
+ * @param {number} currentTime - Current animation time in seconds
+ * @param {number} attributePosition - Position attribute location in shader
+ * @param {number} attributeNormal - Normal attribute location in shader
+ * @param {number} attributeTexCoord - Texture coordinate attribute location in shader
+ * @param {number} uniformModel - Model matrix uniform location
+ * @param {number} uniformObjectColor - Object color uniform location
+ * @param {number} uniformUseTexture - Use texture flag uniform location
+ * @param {number} uniformIsWater - Is water flag uniform location
+ * @param {number} uniformIsFlower - Is flower flag uniform location
+ * @return {void}
+ */
+export function renderBirds(gl, birdBuffers, currentTime, attributePosition, attributeNormal, attributeTexCoord, uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater, uniformIsFlower) {
+    gl.uniform1i(uniformIsWater, 0);
+    gl.uniform1i(uniformIsFlower, 0);
+    gl.uniform1i(uniformUseTexture, 0);
 
+    // Bind vertex attributes
     gl.bindBuffer(gl.ARRAY_BUFFER, birdBuffers.vbo);
-    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(attributePosition, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(attributePosition);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, birdBuffers.nbo);
-    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(aNormal);
+    gl.vertexAttribPointer(attributeNormal, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(attributeNormal);
 
-    if (aTexCoord >= 0) {
+    if (attributeTexCoord >= 0) {
         gl.bindBuffer(gl.ARRAY_BUFFER, birdBuffers.tbo);
-        gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(aTexCoord);
+        gl.vertexAttribPointer(attributeTexCoord, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attributeTexCoord);
     }
 
-const birdColors = [
-    [1.0,  0.98, 0.95], 
-    [0.2,  0.18, 0.22], 
-    [0.7,  0.55, 0.35], 
-    [0.85, 0.3,  0.2 ],
-    [0.3,  0.5,  0.7 ], 
-    [0.6,  0.65, 0.4 ], 
-];
+    /**
+     * @brief Color palette for different birds
+     * @type {Array<Array<number>>}
+     */
+    const birdColorPalette = [
+        [1.0,  0.98, 0.95],
+        [0.2,  0.18, 0.22], 
+        [0.7,  0.55, 0.35],
+        [0.85, 0.3,  0.2 ],
+        [0.3,  0.5,  0.7 ],
+        [0.6,  0.65, 0.4 ],
+    ];
 
-    gl.uniform3fv(uObjectColor, [0.15, 0.1, 0.1]);
+    // Base bird color for shading
+    gl.uniform3fv(uniformObjectColor, [0.15, 0.1, 0.1]);
 
-    for (const bird of BIRD_CONFIGS) {
-        const bAngle = t * bird.speed + bird.offset;
-        const wx = bird.x + Math.cos(bAngle) * bird.radius;
-        const wy = bird.y + Math.sin(t * bird.height + bird.offset) * 1.5;
-        const wz = bird.z + Math.sin(bAngle) * bird.radius * 0.6;
+    // Render each bird
+    for (const birdConfig of BIRD_CONFIGS) {
+        // Calculate circular flight path position
+        const birdAngle = currentTime * birdConfig.speed + birdConfig.offset;
+        const worldPositionX = birdConfig.x + Math.cos(birdAngle) * birdConfig.radius;
+        const worldPositionY = birdConfig.y + Math.sin(currentTime * birdConfig.height + birdConfig.offset) * 1.5;
+        const worldPositionZ = birdConfig.z + Math.sin(birdAngle) * birdConfig.radius * 0.6;
 
-        const dirX = -Math.sin(bAngle);
-        const dirZ = Math.cos(bAngle) * 0.6;
-        const dirLen = Math.sqrt(dirX*dirX + dirZ*dirZ);
-        const ndx = dirX / dirLen;
-        const ndz = dirZ / dirLen;
+        // Calculate flight direction vector
+        const directionX = -Math.sin(birdAngle);
+        const directionZ = Math.cos(birdAngle) * 0.6;
+        const directionLength = Math.sqrt(directionX*directionX + directionZ*directionZ);
+        const normalizedDirX = directionX / directionLength;
+        const normalizedDirZ = directionZ / directionLength;
 
-        const flapAngle = Math.sin(t * 4.0 + bird.offset) * 0.4;
-        const cf = Math.cos(flapAngle), sf = Math.sin(flapAngle);
+        // Calculate wing flapping animation
+        const wingFlapAngle = Math.sin(currentTime * 4.0 + birdConfig.offset) * 0.4;
+        const cosWingFlap = Math.cos(wingFlapAngle);
+        const sinWingFlap = Math.sin(wingFlapAngle);
 
-        const scale = 1;
-        const model = new Float32Array([
-            ndx * scale,  sf * scale, ndz * scale, 0,
-            0,            cf * scale, 0,            0,
-           -ndz * scale,  sf * scale, ndx * scale,  0,
-            wx, wy, wz, 1
+        // Build model matrix: rotation based on flight direction and wing flap
+        const modelScale = 1;
+        const modelMatrix = new Float32Array([
+            normalizedDirX * modelScale,  sinWingFlap * modelScale, normalizedDirZ * modelScale, 0,
+            0,                            cosWingFlap * modelScale, 0,                           0,
+            -normalizedDirZ * modelScale, sinWingFlap * modelScale, normalizedDirX * modelScale, 0,
+            worldPositionX, worldPositionY, worldPositionZ, 1
         ]);
-        const colorIdx = BIRD_CONFIGS.indexOf(bird) % birdColors.length;
 
-        gl.uniform3fv(uObjectColor, birdColors[colorIdx]);
-        gl.uniformMatrix4fv(uModel, false, model);
+        // Select color for this bird based on configuration index
+        const birdColorIndex = BIRD_CONFIGS.indexOf(birdConfig) % birdColorPalette.length;
+        gl.uniform3fv(uniformObjectColor, birdColorPalette[birdColorIndex]);
+        gl.uniformMatrix4fv(uniformModel, false, modelMatrix);
 
+        // Render bird geometry
         gl.drawArrays(gl.TRIANGLES, 0, birdBuffers.count);
     }
 }

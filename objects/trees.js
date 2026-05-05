@@ -1,91 +1,104 @@
-
-function createTree(trunkH = 1.5, trunkR = 0.15, crownH = 3.0, crownR = 1.0) {
+/**
+ * @brief Creates tree geometry with trunk, branches, and foliage
+ * @param {number} trunkHeight - Height of the tree trunk
+ * @param {number} trunkRadius - Base radius of the tree trunk
+ * @param {number} crownHeight - Total height of the foliage crown
+ * @param {number} crownRadius - Base radius of the foliage crown
+ * @return {Object} Object containing vertices, normals, texcoords arrays and vertex counts
+ */
+function createTree(trunkHeight = 1.5, trunkRadius = 0.15, crownHeight = 3.0, crownRadius = 1.0) {
     const vertices = [], normals = [], texcoords = [];
-    const segments = 150; 
+    const cylinderSegments = 150; 
 
-    for (let i = 0; i < segments; i++) {
-        const a1 = (i / segments) * Math.PI * 2;
-        const a2 = ((i+1) / segments) * Math.PI * 2;
-        const x1 = Math.cos(a1), z1 = Math.sin(a1);
-        const x2 = Math.cos(a2), z2 = Math.sin(a2);
+    // TRUNK
+    for (let i = 0; i < cylinderSegments; i++) {
+        const angle1 = (i / cylinderSegments) * Math.PI * 2;
+        const angle2 = ((i+1) / cylinderSegments) * Math.PI * 2;
+        const cosAngle1 = Math.cos(angle1), sinAngle1 = Math.sin(angle1);
+        const cosAngle2 = Math.cos(angle2), sinAngle2 = Math.sin(angle2);
 
         vertices.push(
-            x1*trunkR, 0, z1*trunkR,
-            x2*trunkR, 0, z2*trunkR,
-            x2*trunkR*0.85, trunkH, z2*trunkR*0.85,
-            x1*trunkR, 0, z1*trunkR,
-            x2*trunkR*0.85, trunkH, z2*trunkR*0.85,
-            x1*trunkR*0.85, trunkH, z1*trunkR*0.85
+            cosAngle1*trunkRadius, 0, sinAngle1*trunkRadius,
+            cosAngle2*trunkRadius, 0, sinAngle2*trunkRadius,
+            cosAngle2*trunkRadius*0.85, trunkHeight, sinAngle2*trunkRadius*0.85,
+            cosAngle1*trunkRadius, 0, sinAngle1*trunkRadius,
+            cosAngle2*trunkRadius*0.85, trunkHeight, sinAngle2*trunkRadius*0.85,
+            cosAngle1*trunkRadius*0.85, trunkHeight, sinAngle1*trunkRadius*0.85
         );
-        const nx = x1*0.95, nz = z1*0.95;
-        for (let j = 0; j < 6; j++) normals.push(nx, 0.05, nz);
+        const normalX = cosAngle1*0.95, normalZ = sinAngle1*0.95;
+        for (let j = 0; j < 6; j++) normals.push(normalX, 0.05, normalZ);
         for (let j = 0; j < 6; j++) texcoords.push(0, 0);
     }
-    const trunkCount = segments * 6;
+    const trunkVertexCount = cylinderSegments * 6;
 
+    // BRANCHES
     const branchCount = 2;
-    for (let b = 0; b < branchCount; b++) {
-        const bangle = (b / branchCount) * Math.PI * 2;
-        const bheight = trunkH * (0.45 + b * 0.25);
-        const blen = 0.5 + b * 0.1;
-        const bx = Math.cos(bangle) * blen;
-        const bz = Math.sin(bangle) * blen;
-        const br = trunkR * 0.3;
+    for (let branchIndex = 0; branchIndex < branchCount; branchIndex++) {
+        const branchAngle = (branchIndex / branchCount) * Math.PI * 2;
+        const branchHeight = trunkHeight * (0.45 + branchIndex * 0.25);
+        const branchLength = 0.5 + branchIndex * 0.1;
+        const branchOffsetX = Math.cos(branchAngle) * branchLength;
+        const branchOffsetZ = Math.sin(branchAngle) * branchLength;
+        const branchRadius = trunkRadius * 0.3;
 
         for (let i = 0; i < 6; i++) {
-            const a1 = (i / 6) * Math.PI * 2;
-            const a2 = ((i+1) / 6) * Math.PI * 2;
-            const x1 = Math.cos(a1)*br, z1 = Math.sin(a1)*br;
-            const x2 = Math.cos(a2)*br, z2 = Math.sin(a2)*br;
+            const angle1 = (i / 6) * Math.PI * 2;
+            const angle2 = ((i+1) / 6) * Math.PI * 2;
+            const cosAngle1 = Math.cos(angle1)*branchRadius, sinAngle1 = Math.sin(angle1)*branchRadius;
+            const cosAngle2 = Math.cos(angle2)*branchRadius, sinAngle2 = Math.sin(angle2)*branchRadius;
 
             vertices.push(
-                x1, bheight, z1, x2, bheight, z2, x2 + bx*0.5, bheight + 0.25, z2 + bz*0.5,
-                x1, bheight, z1, x2 + bx*0.5, bheight + 0.25, z2 + bz*0.5, x1 + bx*0.5, bheight + 0.25, z1 + bz*0.5
+                cosAngle1, branchHeight, sinAngle1,
+                cosAngle2, branchHeight, sinAngle2,
+                cosAngle2 + branchOffsetX*0.5, branchHeight + 0.25, sinAngle2 + branchOffsetZ*0.5,
+                cosAngle1, branchHeight, sinAngle1,
+                cosAngle2 + branchOffsetX*0.5, branchHeight + 0.25, sinAngle2 + branchOffsetZ*0.5,
+                cosAngle1 + branchOffsetX*0.5, branchHeight + 0.25, sinAngle1 + branchOffsetZ*0.5
             );
-            const nx = Math.cos((a1+a2)*0.5), nz = Math.sin((a1+a2)*0.5);
-            for (let j = 0; j < 6; j++) normals.push(nx, 0.1, nz);
+            const normalX = Math.cos((angle1+angle2)*0.5), normalZ = Math.sin((angle1+angle2)*0.5);
+            for (let j = 0; j < 6; j++) normals.push(normalX, 0.1, normalZ);
             for (let j = 0; j < 6; j++) texcoords.push(0, 0);
         }
     }
-    const branchVertCount = branchCount * 6 * 6;
+    const branchVertexCount = branchCount * 6 * 6;
 
-    const crowns = [
-        { h: trunkH - 0.2, r: crownR*0.7, peak: trunkH + crownH*0.45 },
-        { h: trunkH + 0.05, r: crownR*1.05, peak: trunkH + crownH*0.9 },
-        { h: trunkH + 0.25, r: crownR*0.8, peak: trunkH + crownH*1.3 },
+    // FOLIAGE CROWN 
+    const crownLayers = [
+        { baseHeight: trunkHeight - 0.2, baseRadius: crownRadius*0.7, peakHeight: trunkHeight + crownHeight*0.45 },
+        { baseHeight: trunkHeight + 0.05, baseRadius: crownRadius*1.05, peakHeight: trunkHeight + crownHeight*0.9 },
+        { baseHeight: trunkHeight + 0.25, baseRadius: crownRadius*0.8, peakHeight: trunkHeight + crownHeight*1.3 },
     ];
 
-    let crownCount = 0;
-    for (const crown of crowns) {
-        for (let i = 0; i < segments; i++) {
-            const a1 = (i / segments) * Math.PI * 2;
-            const a2 = ((i+1) / segments) * Math.PI * 2;
-            const x1 = Math.cos(a1), z1 = Math.sin(a1);
-            const x2 = Math.cos(a2), z2 = Math.sin(a2);
+    let crownVertexCount = 0;
+    for (const crownLayer of crownLayers) {
+        for (let i = 0; i < cylinderSegments; i++) {
+            const angle1 = (i / cylinderSegments) * Math.PI * 2;
+            const angle2 = ((i+1) / cylinderSegments) * Math.PI * 2;
+            const cosAngle1 = Math.cos(angle1), sinAngle1 = Math.sin(angle1);
+            const cosAngle2 = Math.cos(angle2), sinAngle2 = Math.sin(angle2);
 
-            const h1 = crown.h + (crown.peak - crown.h) * 0.15;
-            const h2 = crown.h + (crown.peak - crown.h) * 0.5;
-
+            // Side faces
             vertices.push(
-                x1*crown.r, crown.h, z1*crown.r,
-                x2*crown.r, crown.h, z2*crown.r,
-                0, crown.peak, 0
+                cosAngle1*crownLayer.baseRadius, crownLayer.baseHeight, sinAngle1*crownLayer.baseRadius,
+                cosAngle2*crownLayer.baseRadius, crownLayer.baseHeight, sinAngle2*crownLayer.baseRadius,
+                0, crownLayer.peakHeight, 0
             );
-            const nx = (x1+x2)*0.5, nz = (z1+z2)*0.5;
-            const ny = crown.r / Math.max(0.1, crown.peak - crown.h);
-            const nl = Math.sqrt(nx*nx + ny*ny + nz*nz);
-            for (let j = 0; j < 3; j++) normals.push(nx/nl, ny/nl, nz/nl);
+            const normalX = (cosAngle1+cosAngle2)*0.5, normalZ = (sinAngle1+sinAngle2)*0.5;
+            const normalY = crownLayer.baseRadius / Math.max(0.1, crownLayer.peakHeight - crownLayer.baseHeight);
+            const normalLength = Math.sqrt(normalX*normalX + normalY*normalY + normalZ*normalZ);
+            for (let j = 0; j < 3; j++) normals.push(normalX/normalLength, normalY/normalLength, normalZ/normalLength);
             for (let j = 0; j < 3; j++) texcoords.push(0, 0);
 
+            // Base faces
             vertices.push(
-                0, crown.h, 0,
-                x1*crown.r, crown.h, z1*crown.r,
-                x2*crown.r, crown.h, z2*crown.r
+                0, crownLayer.baseHeight, 0,
+                cosAngle1*crownLayer.baseRadius, crownLayer.baseHeight, sinAngle1*crownLayer.baseRadius,
+                cosAngle2*crownLayer.baseRadius, crownLayer.baseHeight, sinAngle2*crownLayer.baseRadius
             );
             for (let j = 0; j < 3; j++) normals.push(0, -1, 0);
             for (let j = 0; j < 3; j++) texcoords.push(0, 0);
 
-            crownCount += 6;
+            crownVertexCount += 6;
         }
     }
 
@@ -93,182 +106,292 @@ function createTree(trunkH = 1.5, trunkR = 0.15, crownH = 3.0, crownR = 1.0) {
         vertices: new Float32Array(vertices),
         normals: new Float32Array(normals),
         texcoords: new Float32Array(texcoords),
-        trunkCount, branchCount: branchVertCount, crownCount,
+        trunkCount: trunkVertexCount,
+        branchCount: branchVertexCount,
+        crownCount: crownVertexCount,
     };
 }
 
+/**
+ * @brief Tree type definitions with dimensions and colors
+ * @type {Array<Object>}
+ * @property {number} trunkH - Height of tree trunk
+ * @property {number} trunkR - Radius of tree trunk
+ * @property {number} crownH - Height of foliage crown
+ * @property {number} crownR - Radius of foliage crown
+ * @property {Array<number>} trunkColor - Trunk RGB color [r, g, b]
+ * @property {Array<Array<number>>} crownColors - Array of possible foliage colors
+ */
 const TREE_TYPES = [
-    { trunkH: 2.5, trunkR: 0.2, crownH: 6.0, crownR: 1.2,
-      trunkColor: [0.35, 0.22, 0.1], crownColors: [
-        [0.05, 0.25, 0.08],
-        [0.08, 0.30, 0.10],
-        [0.10, 0.28, 0.09],
-        [0.06, 0.26, 0.07], 
-      ] },
-    { trunkH: 3.0, trunkR: 0.25, crownH: 2.5, crownR: 2.8,
-      trunkColor: [0.45, 0.28, 0.12], crownColors: [
-        [0.2, 0.55, 0.15], 
-        [0.28, 0.62, 0.20], 
-        [0.18, 0.52, 0.14], 
-        [0.55, 0.45, 0.15],
-      ] },
-    { trunkH: 1.2, trunkR: 0.14, crownH: 2.5, crownR: 1.8,
-      trunkColor: [0.4, 0.25, 0.1], crownColors: [
-        [0.35, 0.48, 0.12], 
-        [0.42, 0.55, 0.18], 
-        [0.30, 0.42, 0.10],  
-        [0.60, 0.48, 0.15], 
-      ] },
+    {
+        trunkH: 2.5,
+        trunkR: 0.2,
+        crownH: 6.0,
+        crownR: 1.2,
+        trunkColor: [0.35, 0.22, 0.1],
+        crownColors: [
+            [0.05, 0.25, 0.08],
+            [0.08, 0.30, 0.10], 
+            [0.10, 0.28, 0.09],
+            [0.06, 0.26, 0.07],
+        ]
+    },
+    {
+        trunkH: 3.0,
+        trunkR: 0.25,
+        crownH: 2.5,
+        crownR: 2.8,
+        trunkColor: [0.45, 0.28, 0.12],
+        crownColors: [
+            [0.2, 0.55, 0.15], 
+            [0.28, 0.62, 0.20],
+            [0.18, 0.52, 0.14], 
+            [0.55, 0.45, 0.15],
+        ]
+    },
+    {
+        trunkH: 1.2,
+        trunkR: 0.14,
+        crownH: 2.5,
+        crownR: 1.8,
+        trunkColor: [0.4, 0.25, 0.1],
+        crownColors: [
+            [0.35, 0.48, 0.12],
+            [0.42, 0.55, 0.18], 
+            [0.30, 0.42, 0.10],
+            [0.60, 0.48, 0.15],
+        ]
+    },
 ];
 
-export function createTrees(getHeight, getBaseHeight, riverPoints, count = 80, terrainSize = 120) {
-    const trees = [];
+/**
+ * @brief Creates array of tree instances placed on terrain
+ * @param {Function} getTerrainHeight - Function to get full terrain height at (x, z)
+ * @param {Function} getBaseTerrainHeight - Function to get base terrain height at (x, z)
+ * @param {Array<Object>} riverControlPoints - River path control points [{x, z}, ...]
+ * @param {number} treeCount - Target number of trees to place (default 80)
+ * @param {number} terrainSize - Size of terrain grid (default 120)
+ * @return {Array<Object>} Array of tree objects with position, type, angle, scale, and color
+ */
+export function createTrees(getTerrainHeight, getBaseTerrainHeight, riverControlPoints, treeCount = 80, terrainSize = 120) {
+    const placedTrees = [];
 
-    function distToRiver(x, z) {
-        let minDist = Infinity;
-        for (let i = 0; i < riverPoints.length - 1; i++) {
-            const a = riverPoints[i], b = riverPoints[i+1];
-            const dx = b.x - a.x, dz = b.z - a.z;
-            const len2 = dx*dx + dz*dz;
-            let t = ((x-a.x)*dx + (z-a.z)*dz) / len2;
-            t = Math.max(0, Math.min(1, t));
-            const cx = a.x + t*dx, cz = a.z + t*dz;
-            const d = Math.sqrt((x-cx)*(x-cx) + (z-cz)*(z-cz));
-            if (d < minDist) minDist = d;
+    /**
+     * @brief Calculates shortest distance from point to river curve
+     * @param {number} pointX - X coordinate of point
+     * @param {number} pointZ - Z coordinate of point
+     * @return {number} Shortest distance to river
+     */
+    function distanceToRiver(pointX, pointZ) {
+        let minimumDistance = Infinity;
+        for (let i = 0; i < riverControlPoints.length - 1; i++) {
+            const controlPoint1 = riverControlPoints[i];
+            const controlPoint2 = riverControlPoints[i+1];
+            const deltaX = controlPoint2.x - controlPoint1.x;
+            const deltaZ = controlPoint2.z - controlPoint1.z;
+            const segmentLengthSquared = deltaX*deltaX + deltaZ*deltaZ;
+            
+            let parameter = ((pointX-controlPoint1.x)*deltaX + (pointZ-controlPoint1.z)*deltaZ) / segmentLengthSquared;
+            parameter = Math.max(0, Math.min(1, parameter));
+            
+            const closestX = controlPoint1.x + parameter*deltaX;
+            const closestZ = controlPoint1.z + parameter*deltaZ;
+            const distanceSquared = (pointX-closestX)*(pointX-closestX) + (pointZ-closestZ)*(pointZ-closestZ);
+            const distance = Math.sqrt(distanceSquared);
+            
+            if (distance < minimumDistance) minimumDistance = distance;
         }
-        return minDist;
+        return minimumDistance;
     }
 
-    function distToOtherTree(x, z, trees) {
-        if (trees.length === 0) return Infinity;
-        let minDist = Infinity;
-        for (const t of trees) {
-            const d = Math.sqrt((x-t.x)*(x-t.x) + (z-t.z)*(z-t.z));
-            if (d < minDist) minDist = d;
+    /**
+     * @brief Calculates shortest distance from point to nearest tree
+     * @param {number} pointX - X coordinate of point
+     * @param {number} pointZ - Z coordinate of point
+     * @param {Array<Object>} treeList - Array of already placed trees
+     * @return {number} Shortest distance to another tree
+     */
+    function distanceToOtherTree(pointX, pointZ, treeList) {
+        if (treeList.length === 0) return Infinity;
+        let minimumDistance = Infinity;
+        for (const treeItem of treeList) {
+            const distanceSquared = (pointX-treeItem.x)*(pointX-treeItem.x) + (pointZ-treeItem.z)*(pointZ-treeItem.z);
+            const distance = Math.sqrt(distanceSquared);
+            if (distance < minimumDistance) minimumDistance = distance;
         }
-        return minDist;
+        return minimumDistance;
     }
 
-    let attempts = 0;
-    while (trees.length < count && attempts < count * 30) {
-        attempts++;
+    // Placement attempt loop
+    let attemptCount = 0;
+    while (placedTrees.length < treeCount && attemptCount < treeCount * 30) {
+        attemptCount++;
 
-        let x, z;
-        const edge = Math.random();
-        if (edge < 0.25) {
-            x = Math.random() * 25;  
-            z = Math.random() * terrainSize;
-        } else if (edge < 0.5) {
-            x = terrainSize - Math.random() * 25;
-            z = Math.random() * terrainSize;
-        } else if (edge < 0.75) {
-            x = Math.random() * terrainSize;
-            z = Math.random() * 25;
+        // Randomly choose edge region
+        let treePositionX, treePositionZ;
+        const edgeSelection = Math.random();
+        if (edgeSelection < 0.25) {
+            treePositionX = Math.random() * 25;  // Left edge
+            treePositionZ = Math.random() * terrainSize;
+        } else if (edgeSelection < 0.5) {
+            treePositionX = terrainSize - Math.random() * 25;  // Right edge
+            treePositionZ = Math.random() * terrainSize;
+        } else if (edgeSelection < 0.75) {
+            treePositionX = Math.random() * terrainSize;
+            treePositionZ = Math.random() * 25;  // Top edge
         } else {
-            x = Math.random() * terrainSize;
-            z = terrainSize - Math.random() * 25;
+            treePositionX = Math.random() * terrainSize;
+            treePositionZ = terrainSize - Math.random() * 25;  // Bottom edge
         }
 
-        if (x < 1 || x > terrainSize-1 || z < 1 || z > terrainSize-1) continue;
+        // Check terrain bounds
+        if (treePositionX < 1 || treePositionX > terrainSize-1 || treePositionZ < 1 || treePositionZ > terrainSize-1) continue;
 
-        const riverDist = distToRiver(x, z);
-        if (riverDist < 5.0) continue;
+        // Check river proximity
+        const riverDistance = distanceToRiver(treePositionX, treePositionZ);
+        if (riverDistance < 5.0) continue;
 
-        const treeDist = distToOtherTree(x, z, trees);
-        if (treeDist < 8.0) continue;
+        // Check tree spacing
+        const otherTreeDistance = distanceToOtherTree(treePositionX, treePositionZ, placedTrees);
+        if (otherTreeDistance < 8.0) continue;
 
-        const fullY = getHeight(x, z);
-        const baseY = getBaseHeight(x, z);
-        const bankBoost = fullY - baseY;
-        if (bankBoost > 0.8) continue;
+        // Check bank height
+        const terrainHeightFull = getTerrainHeight(treePositionX, treePositionZ);
+        const terrainHeightBase = getBaseTerrainHeight(treePositionX, treePositionZ);
+        const bankHeight = terrainHeightFull - terrainHeightBase;
+        if (bankHeight > 0.8) continue;
 
-        const slope = Math.abs(getHeight(x+1, z) - getHeight(x-1, z)) +
-                      Math.abs(getHeight(x, z+1) - getHeight(x, z-1));
-        if (slope > 3.0) continue;
+        // Check slope steepness
+        const slopeValue = Math.abs(getTerrainHeight(treePositionX+1, treePositionZ) - getTerrainHeight(treePositionX-1, treePositionZ)) +
+                           Math.abs(getTerrainHeight(treePositionX, treePositionZ+1) - getTerrainHeight(treePositionX, treePositionZ-1));
+        if (slopeValue > 3.0) continue;
 
-        const typeIdx = trees.length % 3;
-        const scale = 0.95 + Math.random() * 0.3;
+        // Place tree
+        const treeTypeIndex = placedTrees.length % 3;
+        const treeScale = 0.95 + Math.random() * 0.3;
+        const crownColorIndex = Math.floor(Math.random() * TREE_TYPES[treeTypeIndex].crownColors.length);
 
-        trees.push({
-            x, y: fullY, z,
-            type: typeIdx,
+        placedTrees.push({
+            x: treePositionX,
+            y: terrainHeightFull,
+            z: treePositionZ,
+            type: treeTypeIndex,
             angle: Math.random() * Math.PI * 2,
-            scale,
-            colorIdx: Math.floor(Math.random() * TREE_TYPES[typeIdx].crownColors.length), 
+            scale: treeScale,
+            colorIdx: crownColorIndex,
         });
     }
-    return trees;
+    return placedTrees;
 }
 
+/**
+ * @brief Initializes GPU buffers for all tree types
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @return {Array<Object>} Array of buffer objects for each tree type
+ */
 export function initTreeBuffers(gl) {
-    return TREE_TYPES.map(type => {
-        const geo = createTree(type.trunkH, type.trunkR, type.crownH, type.crownR);
+    return TREE_TYPES.map(treeType => {
+        const treeGeometry = createTree(treeType.trunkH, treeType.trunkR, treeType.crownH, treeType.crownR);
 
-        function upload(data) {
-            const buf = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-            gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-            return buf;
+        /**
+         * @brief Uploads geometry data to GPU buffer
+         * @param {Float32Array} geometryData - Vertex data to upload
+         * @return {WebGLBuffer} Created and populated buffer
+         */
+        function uploadBufferData(geometryData) {
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, geometryData, gl.STATIC_DRAW);
+            return buffer;
         }
 
-        const vbo = upload(geo.vertices);
-        const nbo = upload(geo.normals);
-        const tbo = upload(geo.texcoords);
+        const vertexBufferObject = uploadBufferData(treeGeometry.vertices);
+        const normalBufferObject = uploadBufferData(treeGeometry.normals);
+        const textureCoordBufferObject = uploadBufferData(treeGeometry.texcoords);
 
-        return { vbo, nbo, tbo, trunkCount: geo.trunkCount, branchCount: geo.branchCount,crownCount: geo.crownCount };
+        return {
+            vbo: vertexBufferObject,
+            nbo: normalBufferObject,
+            tbo: textureCoordBufferObject,
+            trunkCount: treeGeometry.trunkCount,
+            branchCount: treeGeometry.branchCount,
+            crownCount: treeGeometry.crownCount
+        };
     });
 }
 
-export function renderTrees(gl, treeBuffers, trees, terrainOffset, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower) {
-    gl.uniform1i(uIsWater, 0);
-    gl.uniform1i(uIsFlower, 0);
-    gl.uniform1i(uUseTexture, 0);
+/**
+ * @brief Renders all tree instances
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @param {Array<Object>} treeBuffers - Buffer objects for each tree type
+ * @param {Array<Object>} treeInstances - Array of tree instances to render
+ * @param {Array<number>} terrainOffsetVector - World offset for terrain [x, y, z]
+ * @param {number} attributePosition - Position attribute location
+ * @param {number} attributeNormal - Normal attribute location
+ * @param {number} attributeTexCoord - Texture coordinate attribute location
+ * @param {number} uniformModel - Model matrix uniform location
+ * @param {number} uniformObjectColor - Object color uniform location
+ * @param {number} uniformUseTexture - Use texture flag uniform location
+ * @param {number} uniformIsWater - Is water flag uniform location
+ * @param {number} uniformIsFlower - Is flower flag uniform location
+ * @return {void}
+ */
+export function renderTrees(gl, treeBuffers, treeInstances, terrainOffsetVector, attributePosition, attributeNormal, attributeTexCoord, uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater, uniformIsFlower) {
+    gl.uniform1i(uniformIsWater, 0);
+    gl.uniform1i(uniformIsFlower, 0);
+    gl.uniform1i(uniformUseTexture, 0);
 
-    for (const tree of trees) {
-        const buf = treeBuffers[tree.type];
-        const type = TREE_TYPES[tree.type];
-        const wx = tree.x + terrainOffset[0];
-        const wy = tree.y + terrainOffset[1];
-        const wz = tree.z + terrainOffset[2];
-        const s = tree.scale;
-        const ca = Math.cos(tree.angle), sa = Math.sin(tree.angle);
+    for (const treeInstance of treeInstances) {
+        const treeBuffer = treeBuffers[treeInstance.type];
+        const treeType = TREE_TYPES[treeInstance.type];
+        
+        const worldPositionX = treeInstance.x + terrainOffsetVector[0];
+        const worldPositionY = treeInstance.y + terrainOffsetVector[1];
+        const worldPositionZ = treeInstance.z + terrainOffsetVector[2];
+        const treeScale = treeInstance.scale;
+        const cosRotation = Math.cos(treeInstance.angle);
+        const sinRotation = Math.sin(treeInstance.angle);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, buf.vbo);
-        gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(aPosition);
+        // Bind vertex attributes
+        gl.bindBuffer(gl.ARRAY_BUFFER, treeBuffer.vbo);
+        gl.vertexAttribPointer(attributePosition, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attributePosition);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, buf.nbo);
-        gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(aNormal);
+        gl.bindBuffer(gl.ARRAY_BUFFER, treeBuffer.nbo);
+        gl.vertexAttribPointer(attributeNormal, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attributeNormal);
 
-        if (aTexCoord >= 0) {
-            gl.bindBuffer(gl.ARRAY_BUFFER, buf.tbo);
-            gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
-            gl.enableVertexAttribArray(aTexCoord);
+        if (attributeTexCoord >= 0) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, treeBuffer.tbo);
+            gl.vertexAttribPointer(attributeTexCoord, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(attributeTexCoord);
         }
 
-        const model = new Float32Array([
-            s*ca, 0, s*sa, 0,
-            0,    s, 0,    0,
-           -s*sa, 0, s*ca, 0,
-            wx, wy, wz, 1
+        // Set model matrix with rotation and scale
+        const modelMatrix = new Float32Array([
+            treeScale*cosRotation, 0, treeScale*sinRotation, 0,
+            0, treeScale, 0, 0,
+            -treeScale*sinRotation, 0, treeScale*cosRotation, 0,
+            worldPositionX, worldPositionY, worldPositionZ, 1
         ]);
-        gl.uniformMatrix4fv(uModel, false, model);
+        gl.uniformMatrix4fv(uniformModel, false, modelMatrix);
 
-        gl.uniform3fv(uObjectColor, type.trunkColor);
-        gl.drawArrays(gl.TRIANGLES, 0, buf.trunkCount);
+        // Render trunk
+        gl.uniform3fv(uniformObjectColor, treeType.trunkColor);
+        gl.drawArrays(gl.TRIANGLES, 0, treeBuffer.trunkCount);
 
+        // Render branches (slightly lighter than trunk)
         const branchColor = [
-            type.trunkColor[0] * 1.2,
-            type.trunkColor[1] * 1.2,
-            type.trunkColor[2] * 1.2
+            treeType.trunkColor[0] * 1.2,
+            treeType.trunkColor[1] * 1.2,
+            treeType.trunkColor[2] * 1.2
         ];
-        gl.uniform3fv(uObjectColor, branchColor);
-        gl.drawArrays(gl.TRIANGLES, buf.trunkCount, buf.branchCount);
+        gl.uniform3fv(uniformObjectColor, branchColor);
+        gl.drawArrays(gl.TRIANGLES, treeBuffer.trunkCount, treeBuffer.branchCount);
 
-        const colorIdx = Math.floor(Math.random() * type.crownColors.length);
-        const crownColor = type.crownColors[tree.colorIdx];
-        gl.uniform3fv(uObjectColor, crownColor);
-        gl.drawArrays(gl.TRIANGLES, buf.trunkCount + buf.branchCount, buf.crownCount);
+        // Render foliage crown with stored color index
+        const selectedCrownColor = treeType.crownColors[treeInstance.colorIdx];
+        gl.uniform3fv(uniformObjectColor, selectedCrownColor);
+        gl.drawArrays(gl.TRIANGLES, treeBuffer.trunkCount + treeBuffer.branchCount, treeBuffer.crownCount);
     }
 }

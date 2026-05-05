@@ -1,10 +1,13 @@
 precision mediump float;
 
+// ATTRIBUTE INPUTS
 attribute vec3 aPosition;
 
+// UNIFORM INPUTS
 uniform mat4 uView;
 uniform mat4 uProjection;
 
+// VARYING OUTPUTS
 varying vec3 vDirection;
 
 void main() {
