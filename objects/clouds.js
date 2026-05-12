@@ -38,12 +38,58 @@ const CLOUD_CONFIGS = [
  * @property {number} sz - Scale factor in Z direction
  */
 const CLOUD_PARTS = [
-    { ox: 0,    oy: 0,    oz: 0,    sx: 16.0, sy: 4.0, sz: 9.0  },
-    { ox: -7.0, oy: -0.3, oz: 0.2,  sx: 12.0, sy: 3.5, sz: 7.5  },
-    { ox:  7.0, oy: -0.2, oz: -0.2, sx: 13.0, sy: 3.8, sz: 8.0  },
-    { ox:  0.5, oy:  2.0, oz: 0.1,  sx:  8.0, sy: 3.0, sz: 6.0  },
-    { ox:  0.2, oy: -0.5, oz:  2.0, sx: 10.0, sy: 3.2, sz: 5.5  },
-    { ox: -2.5, oy:  1.5, oz: -1.5, sx:  7.0, sy: 2.5, sz: 5.0  },
+    // MAIN BODY
+    { ox: 0,    oy: 0,    oz: 0,    sx: 15.0, sy: 4.0, sz: 8.0  },
+    
+    // LARGE PRIMARY BUMPS
+    { ox: -10.0, oy:  1.5, oz:  1.0, sx: 11.0, sy: 4.0, sz: 7.0  },
+    { ox:  11.0, oy:  1.5, oz: -1.0, sx: 12.0, sy: 4.0, sz: 7.5 },
+    
+    // TOP LAYER
+    { ox: -5.0, oy:  3.5, oz:  0.5, sx:  9.0, sy: 3.5, sz: 6.5  },
+    { ox:  6.0, oy:  3.8, oz: -0.5, sx:  10.0, sy: 3.5, sz: 7.0  },
+    { ox:  0.0, oy:  4.5, oz:  0.0, sx:  8.0, sy: 3.0, sz: 6.0  },
+    { ox: -2.0, oy:  5.0, oz:  1.2, sx:  6.5, sy: 2.8, sz: 5.0  },
+    { ox:  3.0, oy:  5.2, oz: -1.2, sx:  7.0, sy: 2.8, sz: 5.2  },
+    
+    // MIDDLE LAYER
+    { ox: -7.0, oy:  2.0, oz:  2.0, sx:  8.5, sy: 3.2, sz: 6.0  },
+    { ox:  8.0, oy:  2.0, oz: -1.8, sx:  9.0, sy: 3.2, sz: 6.5  },
+    { ox: -3.5, oy:  2.5, oz:  0.2, sx:  7.0, sy: 3.0, sz: 5.5  },
+    { ox:  4.5, oy:  2.8, oz:  0.3, sx:  7.5, sy: 3.0, sz: 5.8  },
+    
+    // SIDE DETAILS
+    { ox: -12.0, oy:  0.5, oz:  1.5, sx:  8.0, sy: 3.0, sz: 5.5  },
+    { ox:  13.0, oy:  0.8, oz: -1.2, sx:  8.5, sy: 3.0, sz: 6.0  },
+    { ox: -9.0, oy: -0.5, oz:  2.5, sx:  7.0, sy: 2.8, sz: 5.0  },
+    { ox:  10.0, oy: -0.3, oz: -2.2, sx:  7.5, sy: 2.8, sz: 5.5  },
+    
+    // SMALL ACCENT BUMPS
+    { ox: -4.0, oy:  4.0, oz:  1.8, sx:  5.5, sy: 2.5, sz: 4.2  },
+    { ox:  5.0, oy:  4.3, oz: -1.8, sx:  6.0, sy: 2.5, sz: 4.5  },
+    { ox: -13.0, oy:  1.8, oz:  0.0, sx:  6.0, sy: 2.5, sz: 4.5  },
+    { ox:  14.0, oy:  2.0, oz:  0.3, sx:  6.5, sy: 2.5, sz: 4.8  },
+    
+    // FINE DETAILS
+    { ox: -1.0, oy:  5.0, oz:  0.8, sx:  4.5, sy: 2.2, sz: 3.5  },
+    { ox:  2.0, oy:  5.3, oz: -0.8, sx:  5.0, sy: 2.2, sz: 3.8  },
+    { ox: -8.0, oy:  3.0, oz:  1.0, sx:  5.0, sy: 2.3, sz: 4.0  },
+    { ox:  7.0, oy:  3.3, oz: -1.0, sx:  5.5, sy: 2.3, sz: 4.2  },
+    
+    // LOWER LAYER
+    { ox:  0.0, oy: -1.5, oz:  0.0, sx: 10.0, sy: 2.5, sz: 6.0  },
+    { ox: -5.0, oy: -0.8, oz:  1.0, sx:  7.0, sy: 2.3, sz: 4.8  },
+    { ox:  6.0, oy: -0.5, oz: -1.0, sx:  7.5, sy: 2.3, sz: 5.2  },
+    
+    // VOLUMETRIC DEPTH
+    { ox: -4.5, oy:  0.8, oz:  1.8, sx:  6.5, sy: 2.5, sz: 4.8  },
+    { ox:  5.5, oy:  1.0, oz: -1.8, sx:  7.0, sy: 2.5, sz: 5.2  },
+    
+    // ULTRA FINE DETAILS
+    { ox: -0.5, oy:  5.8, oz:  0.5, sx:  3.5, sy: 1.8, sz: 2.8  },
+    { ox:  1.5, oy:  6.0, oz: -0.5, sx:  4.0, sy: 1.8, sz: 3.0  },
+    { ox: -10.0, oy:  3.5, oz: -0.8, sx:  5.0, sy: 2.0, sz: 3.8  },
+    { ox:  9.0, oy:  3.8, oz:  0.8, sx:  5.0, sy: 2.0, sz: 4.0  },
 ];
 
 /**
@@ -164,7 +210,7 @@ export function renderClouds(gl, cloudBuffers, currentTime, attributePosition, a
             gl.uniformMatrix4fv(uniformModel, false, modelMatrix);
             
             // Set cloud color (off-white)
-            gl.uniform3fv(uniformObjectColor, [0.95, 0.88, 0.82]);
+            gl.uniform3fv(uniformObjectColor, [0.80, 0.75, 0.72]);
             gl.drawArrays(gl.TRIANGLES, 0, cloudBuffers.count);
         }
     }

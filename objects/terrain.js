@@ -157,7 +157,7 @@ export function createTerrain(gridSize = 120, gridStep = 1) {
         }
     }
 
-    // ── CALCULATE NORMALS ─────────────────────────────────────────────────────
+    // CALCULATE NORMALS
     // Use finite differences to calculate per-vertex normals
     for (let gridZ = 0; gridZ <= gridSize; gridZ += gridStep) {
         for (let gridX = 0; gridX <= gridSize; gridX += gridStep) {

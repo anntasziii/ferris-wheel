@@ -416,7 +416,7 @@ function makeModel(translationX, translationY, translationZ, rotationX, rotation
  */
 export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition,
                                    attributePosition, attributeNormal, attributeTexCoord,
-                                   uniformModel, uniformObjectColor, uniformUseTexture) {
+                                   uniformModel, uniformObjectColor, uniformUseTexture, cabinLightsOn = false) {
     gl.uniform1i(uniformUseTexture, 0);
 
     const [wheelPositionX, wheelPositionY, wheelPositionZ] = wheelPosition;
@@ -424,7 +424,7 @@ export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition
     const sinWheelAngle = Math.sin(rotationAngle);
     const wheelCenterY = wheelPositionY + WHEEL_RADIUS + 6.0;
 
-    // SUPPORTS
+    // ── SUPPORTS ──────────────────────────────────────────────────────────────
     gl.uniform3fv(uniformObjectColor, [0.55, 0.5, 0.45]);
 
     const supportHeight = WHEEL_RADIUS + 6.0;
@@ -446,7 +446,7 @@ export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition
         drawMesh(gl, wheelBuffers.support, attributePosition, attributeNormal, attributeTexCoord);
     }
 
-    // AXLE
+    // ── AXLE ───────────────────────────────────────────────────────────────────
     gl.uniform3fv(uniformObjectColor, [0.4, 0.4, 0.45]);
     const axleModel = new Float32Array([
         1, 0, 0, 0,
@@ -457,7 +457,7 @@ export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition
     gl.uniformMatrix4fv(uniformModel, false, axleModel);
     drawMesh(gl, wheelBuffers.axle, attributePosition, attributeNormal, attributeTexCoord);
 
-    // RIM
+    // ── RIM (main rotating) ────────────────────────────────────────────────────
     gl.uniform3fv(uniformObjectColor, [0.3, 0.35, 0.8]);
     const rimModel = new Float32Array([
         cosWheelAngle, sinWheelAngle, 0, 0,
@@ -468,7 +468,7 @@ export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition
     gl.uniformMatrix4fv(uniformModel, false, rimModel);
     drawMesh(gl, wheelBuffers.rim, attributePosition, attributeNormal, attributeTexCoord);
 
-    // SPOKES
+    // ── SPOKES ────────────────────────────────────────────────────────────────
     gl.uniform3fv(uniformObjectColor, [0.5, 0.5, 0.55]);
 
     for (let spokeIndex = 0; spokeIndex < SPOKE_COUNT; spokeIndex++) {
@@ -491,7 +491,7 @@ export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition
         drawMesh(gl, wheelBuffers.spoke, attributePosition, attributeNormal, attributeTexCoord);
     }
 
-    // DECORATIVE INNER RIM
+    // ── DECORATIVE INNER RIM ───────────────────────────────────────────────────
     gl.uniform3fv(uniformObjectColor, [0.9, 0.7, 0.2]);
     const innerRimScale = WHEEL_RADIUS * 0.6;
     const innerRimModel = new Float32Array([
@@ -503,7 +503,7 @@ export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition
     gl.uniformMatrix4fv(uniformModel, false, innerRimModel);
     drawMesh(gl, wheelBuffers.rim, attributePosition, attributeNormal, attributeTexCoord);
 
-    // CABIN BODIES
+    // ── CABIN BODIES ───────────────────────────────────────────────────────────
     const cabinColorPalette = [
         [0.9, 0.2, 0.3], [0.2, 0.5, 0.9],
         [0.9, 0.75, 0.1], [0.2, 0.75, 0.3],
@@ -515,7 +515,22 @@ export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition
         const cabinOffsetX = Math.cos(cabinAngle) * WHEEL_RADIUS;
         const cabinOffsetY = Math.sin(cabinAngle) * WHEEL_RADIUS;
 
-        gl.uniform3fv(uniformObjectColor, cabinColorPalette[cabinIndex % cabinColorPalette.length]);
+        // Змініть колір якщо світло ввімкнено
+        let cabinColor;
+        if (cabinLightsOn) {
+            // Яскраві кольори з жовтуватим відблиском (світло)
+            const brightPalette = [
+                [1.0, 0.4, 0.4], [0.4, 0.7, 1.0],
+                [1.0, 0.95, 0.3], [0.4, 0.95, 0.4],
+                [1.0, 0.6, 0.2], [0.9, 0.4, 1.0],
+            ];
+            cabinColor = brightPalette[cabinIndex % brightPalette.length];
+        } else {
+            // Темні кольори (світло вимкнено)
+            cabinColor = cabinColorPalette[cabinIndex % cabinColorPalette.length];
+        }
+        
+        gl.uniform3fv(uniformObjectColor, cabinColor);
         const cabinModel = new Float32Array([
             1, 0, 0, 0,
             0, 1, 0, 0,
@@ -526,7 +541,7 @@ export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition
         drawMesh(gl, wheelBuffers.cabinBody, attributePosition, attributeNormal, attributeTexCoord);
     }
 
-    // CABIN GLASS
+    // ── CABIN GLASS (with alpha blending) ──────────────────────────────────────
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
@@ -536,7 +551,25 @@ export function renderFerrisWheel(gl, wheelBuffers, rotationAngle, wheelPosition
         const cabinOffsetX = Math.cos(cabinAngle) * WHEEL_RADIUS;
         const cabinOffsetY = Math.sin(cabinAngle) * WHEEL_RADIUS;
 
-        gl.uniform3fv(uniformObjectColor, [0.7, 0.85, 1.0]);
+        // Interior light colors based on cabin lights state
+        let glassColor;
+        if (cabinLightsOn) {
+            // Яскраве теплое світло всередині (жовтаво-помаранчеве)
+            const lightPalette = [
+                [1.0, 0.9, 0.3],   // золотистий
+                [1.0, 0.8, 0.2],   // помаранчевий
+                [1.0, 0.95, 0.4],  // світло-жовтий
+                [0.95, 0.85, 0.2], // теплий жовтий
+                [1.0, 0.88, 0.3],  // мідь
+                [1.0, 0.92, 0.35], // кремовий
+            ];
+            glassColor = lightPalette[cabinIndex % lightPalette.length];
+        } else {
+            // Темне скло (прозорий синій)
+            glassColor = [0.7, 0.85, 1.0];
+        }
+
+        gl.uniform3fv(uniformObjectColor, glassColor);
 
         const cabinModel = new Float32Array([
             1, 0, 0, 0,

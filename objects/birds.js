@@ -10,12 +10,12 @@
  * @property {number} height - Vertical oscillation frequency parameter
  */
 const BIRD_CONFIGS = [
-    { x: -5, y: 18, z: -5,  speed: 0.4, radius: 15, offset: 0.0,  height: 0.5 },
-    { x:  3, y: 20, z: -8,  speed: 0.3, radius: 20, offset: 2.1,  height: 0.3 },
-    { x: -2, y: 16, z:  3,  speed: 0.5, radius: 12, offset: 4.3,  height: 0.8 },
-    { x:  5, y: 22, z: -3,  speed: 0.35, radius: 18, offset: 1.5,  height: 0.4 },
-    { x: -8, y: 19, z:  5,  speed: 0.25, radius: 14, offset: 3.7,  height: 0.6 },
-    { x:  0, y: 17, z: -10, speed: 0.45, radius: 16, offset: 5.2,  height: 0.3 },
+    { x: -25, y: 28, z: -20,  speed: 0.4, radius: 15, offset: 0.0,  height: 0.5 },
+    { x:  35, y: 32, z: -30,  speed: 0.3, radius: 20, offset: 2.1,  height: 0.3 },
+    { x: -30, y: 26, z:  25,  speed: 0.5, radius: 12, offset: 4.3,  height: 0.8 },
+    { x:  40, y: 35, z: -15,  speed: 0.35, radius: 18, offset: 1.5,  height: 0.4 },
+    { x: -35, y: 29, z:  35,  speed: 0.25, radius: 14, offset: 3.7,  height: 0.6 },
+    { x:  30, y: 27, z: -40, speed: 0.45, radius: 16, offset: 5.2,  height: 0.3 },
 ];
 
 /**
@@ -290,7 +290,7 @@ export function renderBirds(gl, birdBuffers, currentTime, attributePosition, att
         const sinWingFlap = Math.sin(wingFlapAngle);
 
         // Build model matrix: rotation based on flight direction and wing flap
-        const modelScale = 1;
+        const modelScale = 2;
         const modelMatrix = new Float32Array([
             normalizedDirX * modelScale,  sinWingFlap * modelScale, normalizedDirZ * modelScale, 0,
             0,                            cosWingFlap * modelScale, 0,                           0,

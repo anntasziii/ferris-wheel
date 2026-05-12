@@ -319,7 +319,9 @@ export function initRiverBuffers(gl, river) {
  * @param {number} uniformTexture - Texture unit uniform location
  * @return {void}
  */
-export function renderRiver(gl, riverBuffers, river, terrainOffsetVector, animationTime, attributePosition, attributeNormal, attributeTexCoord,  uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater, uniformTime, waterTexture, uniformTexture) {
+
+export function renderRiver(gl, riverBuffers, river, terrainOffsetVector, animationTime, attributePosition, attributeNormal, attributeTexCoord, uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater, uniformTime, waterTexture, uniformTexture, uIsWater) {
+    gl.uniform1i(uIsWater, 1);
     gl.uniform1i(uniformIsWater, 0);
     gl.uniform1f(uniformTime, animationTime);
 
@@ -355,6 +357,7 @@ export function renderRiver(gl, riverBuffers, river, terrainOffsetVector, animat
     gl.drawElements(gl.TRIANGLES, river.count, gl.UNSIGNED_SHORT, 0);
 
     gl.uniform1i(uniformIsWater, 0);
+    gl.uniform1i(uIsWater, 0);
 }
 
 /**

@@ -19,7 +19,7 @@ function createDetailedFlower(baseSize, petalCount, petalLength, petalWidth, pet
     const stemWidthScaled = baseSize * stemWidth;
     const stemHeightScaled = baseSize * stemHeight;
 
-    // STEM
+    // ── STEM ──────────────────────────────────────────────────────────────────
     const stemVertexData = [
         -stemWidthScaled, 0, 0,  stemWidthScaled, 0, 0,  stemWidthScaled, stemHeightScaled, 0,
         -stemWidthScaled, 0, 0,  stemWidthScaled, stemHeightScaled, 0, -stemWidthScaled, stemHeightScaled, 0,
@@ -30,14 +30,14 @@ function createDetailedFlower(baseSize, petalCount, petalLength, petalWidth, pet
     for (let i = 0; i < 12; i++) normalArray.push(0, 1, 0);
     for (let i = 0; i < 12; i++) textureCoordArray.push(0, 0);
 
-    // PETALS
+    // ── PETALS ────────────────────────────────────────────────────────────────
     const petalBaseY = stemHeightScaled;
     const petalRadius = baseSize * petalLength;
     const petalHalfWidth = baseSize * petalWidth;
     const petalSegmentCount = Math.max(6, Math.round(petalRoundness * 4));
 
     for (let petalIndex = 0; petalIndex < petalCount; petalIndex++) {
-        const verticalOffset = petalIndex * 0.001;
+        const verticalOffset = petalIndex * 0.001;  // Prevent z-fighting
 
         const petalAngle = (petalIndex / petalCount) * Math.PI * 2;
         const cosPetalAngle = Math.cos(petalAngle);
@@ -67,6 +67,7 @@ function createDetailedFlower(baseSize, petalCount, petalLength, petalWidth, pet
             );
             normalArray.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
 
+            // Texture coordinates: center=0, edge=1 for color gradient
             textureCoordArray.push(
                 0.0, 0.0,
                 1.0, 0.0,
@@ -75,7 +76,7 @@ function createDetailedFlower(baseSize, petalCount, petalLength, petalWidth, pet
         }
     }
 
-    // FLOWER CENTER
+    // ── FLOWER CENTER ─────────────────────────────────────────────────────────
     const centerRadius = baseSize * 0.38;
     const centerY = petalBaseY + baseSize * 0.05;
     const centerSegmentCount = 10;
@@ -263,11 +264,14 @@ export function initFlowerBuffers(gl) {
  * @param {number} uniformIsFlower - Is flower flag uniform location (enables shader effects)
  * @return {void}
  */
-export function renderFlowers(gl, flowerBuffers, flowerInstances, terrainOffsetVector, attributePosition, attributeNormal, attributeTexCoord, uniformModel, uniformObjectColor, uniformUseTexture, uniformIsFlower) {
+export function renderFlowers(gl, flowerBuffers, flowerInstances, terrainOffsetVector,
+                               attributePosition, attributeNormal, attributeTexCoord,
+                               uniformModel, uniformObjectColor, uniformUseTexture, uniformIsFlower, flowerScales = null) {
     gl.uniform1i(uniformUseTexture, 0);
     gl.uniform1i(uniformIsFlower, 1);
 
-    for (const flowerInstance of flowerInstances) {
+    for (let flowerIndex = 0; flowerIndex < flowerInstances.length; flowerIndex++) {
+        const flowerInstance = flowerInstances[flowerIndex];
         const typeIndex = FLOWER_TYPES.indexOf(flowerInstance.type);
         const flowerBuffer = flowerBuffers[typeIndex];
 
@@ -291,10 +295,13 @@ export function renderFlowers(gl, flowerBuffers, flowerInstances, terrainOffsetV
         const worldPositionY = flowerInstance.y + terrainOffsetVector[1];
         const worldPositionZ = flowerInstance.z + terrainOffsetVector[2];
 
+        // Get scale for this flower
+        const scale = flowerScales && flowerScales[flowerIndex] ? flowerScales[flowerIndex] : 1.0;
+
         const modelMatrix = new Float32Array([
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
+            scale, 0, 0, 0,
+            0, scale, 0, 0,
+            0, 0, scale, 0,
             worldPositionX, worldPositionY, worldPositionZ, 1
         ]);
         gl.uniformMatrix4fv(uniformModel, false, modelMatrix);

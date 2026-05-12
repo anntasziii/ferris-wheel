@@ -142,6 +142,14 @@ void main() {
     if (isCabinGlass) {
         finalAlpha = 0.35; 
     }
+
+    // ── POINT LIGHT ATTENUATION ──
+    float distance = length(uLightPos - vPosition);
+    float attenuation = 1.0 / (1.0 + 0.05 * distance + 0.01 * distance * distance);
+
+    // Apply attenuation to diffuse and specular
+    diffuseLight *= attenuation;
+    specularLight *= attenuation;
     
     gl_FragColor = vec4(applyFog(finalLitColor), finalAlpha);
 }
