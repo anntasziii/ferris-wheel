@@ -220,6 +220,11 @@ export function initBirdBuffers(gl) {
  * @details Each bird follows a circular path with vertical oscillation and animated wing flapping.
  *          The bird's orientation is calculated from flight direction, and wing flap is
  *          modulated by a sine function for smooth animation.
+ *          
+ *          UPDATED: Now supports animated texture with transformation matrix (punkt 14b)
+ *          The texture coordinates are transformed with scale, rotation, and translation
+ *          to create a dynamic visual effect on the birds.
+ * 
  * @param {WebGLRenderingContext} gl - WebGL context
  * @param {Object} birdBuffers - Buffer object from initBirdBuffers
  * @param {number} currentTime - Current animation time in seconds
@@ -231,12 +236,25 @@ export function initBirdBuffers(gl) {
  * @param {number} uniformUseTexture - Use texture flag uniform location
  * @param {number} uniformIsWater - Is water flag uniform location
  * @param {number} uniformIsFlower - Is flower flag uniform location
+ * @param {number} uniformIsBird - Is bird flag uniform location (punkt 14b)
+ * @param {WebGLTexture} birdTexture - Bird texture for animation (punkt 14b)
+ * @param {number} uniformTexture - Texture uniform location (punkt 14b)
  * @return {void}
  */
-export function renderBirds(gl, birdBuffers, currentTime, attributePosition, attributeNormal, attributeTexCoord, uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater, uniformIsFlower) {
+export function renderBirds(
+    gl, birdBuffers, currentTime, attributePosition, attributeNormal, attributeTexCoord, 
+    uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater, uniformIsFlower,
+    uniformIsBird, birdTexture, uniformTexture
+) {
     gl.uniform1i(uniformIsWater, 0);
     gl.uniform1i(uniformIsFlower, 0);
-    gl.uniform1i(uniformUseTexture, 0);
+
+    // ✅ PUNKT 14b: Вмикаємо режим птиці з текстурою
+    gl.uniform1i(uniformIsBird, 1);
+    gl.uniform1i(uniformUseTexture, 1);
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, birdTexture);
+    gl.uniform1i(uniformTexture, 4);
 
     // Bind vertex attributes
     gl.bindBuffer(gl.ARRAY_BUFFER, birdBuffers.vbo);
@@ -290,7 +308,7 @@ export function renderBirds(gl, birdBuffers, currentTime, attributePosition, att
         const sinWingFlap = Math.sin(wingFlapAngle);
 
         // Build model matrix: rotation based on flight direction and wing flap
-        const modelScale = 2;
+        const modelScale = 3;
         const modelMatrix = new Float32Array([
             normalizedDirX * modelScale,  sinWingFlap * modelScale, normalizedDirZ * modelScale, 0,
             0,                            cosWingFlap * modelScale, 0,                           0,
@@ -306,4 +324,8 @@ export function renderBirds(gl, birdBuffers, currentTime, attributePosition, att
         // Render bird geometry
         gl.drawArrays(gl.TRIANGLES, 0, birdBuffers.count);
     }
+
+    // ✅ PUNKT 14b: Вимикаємо режим птиці після рендера
+    gl.uniform1i(uniformIsBird, 0);
+    gl.uniform1i(uniformUseTexture, 0);
 }

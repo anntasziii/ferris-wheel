@@ -378,15 +378,28 @@ export function renderRiver(gl, riverBuffers, river, terrainOffsetVector, animat
  */
 export function renderPebbles(gl, pebbleBuffers, pebbleInstances, terrainOffsetVector,
                                attributePosition, attributeNormal, attributeTexCoord,
-                               uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater) {
+                               uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater,
+                               pebbleTexture, pebbleSpecTexture, uTexture, uSpecularMap, uIsPebble) {
+    
+    // 1. Налаштування режимів
+    gl.uniform1i(uniformUseTexture, 1); 
     gl.uniform1i(uniformIsWater, 0);
-    gl.uniform1i(uniformUseTexture, 0);
+    gl.uniform1i(uIsPebble, 1); 
+
+    // 2. Активація текстур (ТІЛЬКИ ТУТ, один раз для всіх камінців)
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, pebbleTexture);
+    gl.uniform1i(uTexture, 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, pebbleSpecTexture);
+    gl.uniform1i(uSpecularMap, 1);
 
     for (const pebbleInstance of pebbleInstances) {
         const pebbleShapeBuffer = pebbleBuffers[pebbleInstance.shapeType ?? 0];
         if (!pebbleShapeBuffer) continue;
 
-        // Bind vertex attributes
+        // Прив'язка буферів
         gl.bindBuffer(gl.ARRAY_BUFFER, pebbleShapeBuffer.vbo);
         gl.vertexAttribPointer(attributePosition, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(attributePosition);
@@ -395,28 +408,26 @@ export function renderPebbles(gl, pebbleBuffers, pebbleInstances, terrainOffsetV
         gl.vertexAttribPointer(attributeNormal, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(attributeNormal);
 
-        if (attributeTexCoord >= 0) {
+        if (attributeTexCoord >= 0 && pebbleShapeBuffer.tbo) {
             gl.bindBuffer(gl.ARRAY_BUFFER, pebbleShapeBuffer.tbo);
             gl.vertexAttribPointer(attributeTexCoord, 2, gl.FLOAT, false, 0, 0);
             gl.enableVertexAttribArray(attributeTexCoord);
         }
 
-        // Calculate world position
+        // Розрахунок позиції та кольору
         const worldPositionX = pebbleInstance.x + terrainOffsetVector[0];
         const worldPositionY = pebbleInstance.y + terrainOffsetVector[1];
         const worldPositionZ = pebbleInstance.z + terrainOffsetVector[2];
 
-        // Calculate color with variation
         const grayscaleValue = 0.45 + (pebbleInstance.seed % 9) * 0.03;
         const pebbleColor = pebbleInstance.isBrownColor
             ? [0.55 + grayscaleValue * 0.2, 0.38 + grayscaleValue * 0.1, 0.22]
             : [grayscaleValue, grayscaleValue - 0.02, grayscaleValue - 0.04];
         gl.uniform3fv(uniformObjectColor, pebbleColor);
 
-        // Build model matrix with rotation and scale
+        // Матриця моделі
         const cosRotation = Math.cos(pebbleInstance.angle);
         const sinRotation = Math.sin(pebbleInstance.angle);
-
         const modelMatrix = new Float32Array([
             pebbleInstance.scaleX*cosRotation,  0, pebbleInstance.scaleX*sinRotation, 0,
             0, pebbleInstance.scaleY, 0, 0,
@@ -424,6 +435,15 @@ export function renderPebbles(gl, pebbleBuffers, pebbleInstances, terrainOffsetV
             worldPositionX, worldPositionY, worldPositionZ, 1
         ]);
         gl.uniformMatrix4fv(uniformModel, false, modelMatrix);
+
         gl.drawArrays(gl.TRIANGLES, 0, pebbleShapeBuffer.count);
+        
+    }
+
+    gl.uniform1i(uIsPebble, 0);
+    gl.disableVertexAttribArray(attributePosition);
+    gl.disableVertexAttribArray(attributeNormal);
+    if (attributeTexCoord >= 0) {
+        gl.disableVertexAttribArray(attributeTexCoord);
     }
 }

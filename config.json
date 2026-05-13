@@ -1,0 +1,45 @@
+{
+  "scene": {
+    "backgroundColor": [0.45, 0.25, 0.1],
+    "fogDensity": 0.012,
+    "fogColor": [0.65, 0.4, 0.22]
+  },
+  "ferrisWheel": {
+    "radius": 16.0,
+    "cabinCount": 16,
+    "spokeCount": 16,
+    "position": [10, 0, -12],
+    "rotationSpeed": 0.4
+  },
+  "terrain": {
+    "gridSize": 120,
+    "gridStep": 1,
+    "riverWidth": 3.0,
+    "bankElevationHeight": 1.5
+  },
+  "flowers": {
+    "count": 300,
+    "terrainSize": 120
+  },
+  "birds": {
+    "count": 6,
+    "flightSpeed": 0.4,
+    "flightRadius": 15
+  },
+  "clouds": {
+    "count": 15,
+    "moveSpeed": 0.7,
+    "altitude": 45
+  },
+  "lights": {
+    "lanternCount": 4,
+    "lanternDistance": 20.0,
+    "lanternHeight": 5.0
+  },
+  "camera": {
+    "initialPosition": [0, 2, 6],
+    "fieldOfView": 1.047,
+    "nearPlane": 0.1,
+    "farPlane": 200.0
+  }
+}

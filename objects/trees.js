@@ -353,18 +353,18 @@ export function renderTrees(gl, treeBuffers, treeInstances, terrainOffsetVector,
         const sinRotation = Math.sin(treeInstance.angle);
 
         // Bind vertex attributes
+        gl.enableVertexAttribArray(attributePosition);
         gl.bindBuffer(gl.ARRAY_BUFFER, treeBuffer.vbo);
         gl.vertexAttribPointer(attributePosition, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(attributePosition);
 
+        gl.enableVertexAttribArray(attributeNormal);
         gl.bindBuffer(gl.ARRAY_BUFFER, treeBuffer.nbo);
         gl.vertexAttribPointer(attributeNormal, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(attributeNormal);
 
         if (attributeTexCoord >= 0) {
+            gl.enableVertexAttribArray(attributeTexCoord);
             gl.bindBuffer(gl.ARRAY_BUFFER, treeBuffer.tbo);
             gl.vertexAttribPointer(attributeTexCoord, 2, gl.FLOAT, false, 0, 0);
-            gl.enableVertexAttribArray(attributeTexCoord);
         }
 
         // Set model matrix with rotation and scale
