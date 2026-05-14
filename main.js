@@ -8,6 +8,7 @@ import { initFerrisWheel, renderFerrisWheel, CABIN_COUNT } from "./objects/ferri
 import { initBirdBuffers, renderBirds } from "./objects/birds.js";
 import { createTrees, initTreeBuffers, renderTrees } from "./objects/trees.js";
 import { initLanternBuffers, renderLanterns } from "./objects/lights.js";
+import { CollisionSystem } from "./scene/collisions.js";
 
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -28,6 +29,9 @@ let terrain;
 let lanternBuffers;
 let pebbleTexture;
 let pebbleSpecTexture;
+let uTexMatrix;
+let collisionSystem;
+let wheelIsRotating = true;
 
 /**
  * @brief Renders terrain with grass texture
@@ -228,6 +232,191 @@ function makePerspective(fovY, aspect, near, far) {
     ]);
 }
 
+class TimeManager {
+    constructor(cycleDuration = 15.0) {  // ✅ Змінено на 15 сек
+        this.cycleTime = 0;
+        this.cycleDuration = cycleDuration;
+        this.dayPhase = 0;
+    }
+
+    update(realTime) {
+        this.cycleTime = (realTime % this.cycleDuration) / this.cycleDuration;
+        this.dayPhase = this.cycleTime;
+        
+        return {
+            cycleTime: this.cycleTime,
+            dayPhase: this.dayPhase,
+            // Sine波 для плавних переходів
+            lightIntensity: 0.5 + 0.5 * Math.sin(this.cycleTime * Math.PI * 2),
+            // Різні фази дня
+            isMorning: this.dayPhase < 0.25,
+            isDay: 0.25 <= this.dayPhase && this.dayPhase < 0.5,
+            isEvening: 0.5 <= this.dayPhase && this.dayPhase < 0.75,
+            isNight: this.dayPhase >= 0.75
+        };
+    }
+}
+
+function updateLightParameters(timeManager, gl, uLightPos, uLightColor, uLightIntensity) {
+    const phase = timeManager.dayPhase;
+    
+    // ☀️ ПОЗИЦІЯ СОНЦЯ (по небу)
+    const sunAngle = phase * Math.PI * 2;
+    const sunHeight = Math.sin(phase * Math.PI) * 40;  // 0→40→0
+    const sunDistance = 80;
+    
+    const sunX = Math.cos(sunAngle) * sunDistance;
+    const sunY = 20 + sunHeight;
+    const sunZ = Math.sin(sunAngle) * sunDistance;
+    
+    gl.uniform3fv(uLightPos, [sunX, sunY, sunZ]);
+    
+    // 🎨 КОЛІР СВІТЛА (теплий→жовтий→вечірній→темний)
+    let lightColor = [1.0, 1.0, 1.0];
+    
+    if (phase < 0.25) {
+        // Ранок: синій→жовтий
+        const t = phase / 0.25;
+        lightColor = [
+            0.3 + t * 0.7,  // R: 0.3→1.0
+            0.3 + t * 0.7,  // G: 0.3→1.0
+            1.0 - t * 0.5   // B: 1.0→0.5
+        ];
+    } else if (phase < 0.5) {
+        // День: жовтий→помаранчевий
+        const t = (phase - 0.25) / 0.25;
+        lightColor = [
+            1.0,
+            0.8 - t * 0.3,  // G: 0.8→0.5
+            0.5 - t * 0.3   // B: 0.5→0.2
+        ];
+    } else if (phase < 0.75) {
+        // Вечір: помаранчевий→темно-синій
+        const t = (phase - 0.5) / 0.25;
+        lightColor = [
+            1.0 - t * 0.8,  // R: 1.0→0.2
+            0.5 - t * 0.4,  // G: 0.5→0.1
+            0.2 + t * 0.3   // B: 0.2→0.5
+        ];
+    } else {
+        // Ніч: темно-синій (зіркова ніч)
+        lightColor = [0.2, 0.1, 0.5];
+    }
+    
+    gl.uniform3fv(uLightColor, lightColor);
+    
+    // 💡 ІНТЕНСИВНІСТЬ СВІТЛА
+    const intensity = 0.3 + Math.sin(phase * Math.PI) * 0.7;  // 0.3→1.0→0.3
+    gl.uniform1f(uLightIntensity, intensity);
+}
+
+
+
+function updateFogParameters(timeManager, gl, uFogMode, uFogColor, uFogDensity) {
+    const phase = timeManager.dayPhase;
+    
+    // 🌫️ КОЛІР ТУМАНУ
+    let fogColor = [0.45, 0.60, 0.80];
+    
+    if (phase < 0.2) {
+        const t = phase / 0.2;
+        fogColor = [0.05 + t * 0.25, 0.10 + t * 0.35, 0.35 + t * 0.30];
+    } else if (phase < 0.3) {
+        const t = (phase - 0.2) / 0.1;
+        fogColor = [0.30 + t * 0.15, 0.45 + t * 0.15, 0.65 + t * 0.15];
+    } else if (phase < 0.7) {
+        fogColor = [0.45, 0.60, 0.80]; // Чистий денний колір
+    } else if (phase < 0.8) {
+        const t = (phase - 0.7) / 0.1;
+        fogColor = [0.45 - t * 0.25, 0.60 - t * 0.35, 0.80 - t * 0.30];
+    } else {
+        const t = (phase - 0.8) / 0.2;
+        fogColor = [0.20 - t * 0.15, 0.25 - t * 0.10, 0.50 - t * 0.15];
+    }
+    
+    gl.uniform3fv(uFogColor, fogColor);
+    
+    // 🌫️ ЩІЛЬНІСТЬ ТУМАНУ
+    let fogDensity = 0.0;
+    
+    const nightDensity = 0.025;   // Максимальна густота вночі
+    const morningDensity = 0.012; // Легкий туман на світанку
+    const zeroDensity = 0.0;      // ПОВНА ВІДСУТНІСТЬ туману вдень
+
+    if (phase < 0.2) {
+        // Ранок: від нічного до ранкового
+        const t = phase / 0.2;
+        fogDensity = mix(nightDensity, morningDensity, t);
+    } else if (phase < 0.3) {
+        // Перехід до дня: туман повністю розсіюється
+        const t = (phase - 0.2) / 0.1;
+        fogDensity = mix(morningDensity, zeroDensity, t);
+    } else if (phase < 0.7) {
+        // ДЕНЬ: Туману немає
+        fogDensity = zeroDensity; 
+    } else if (phase < 0.8) {
+        // Вечір: починає з'являтися
+        const t = (phase - 0.7) / 0.1;
+        fogDensity = mix(zeroDensity, 0.015, t);
+    } else {
+        // Ніч: густішає до максимуму
+        const t = (phase - 0.8) / 0.2;
+        fogDensity = mix(0.015, nightDensity, t);
+    }
+    
+    gl.uniform1f(uFogDensity, fogDensity);
+    
+    // Внутрішня функція міксування
+    function mix(a, b, t) {
+        return a * (1.0 - t) + b * t;
+    }
+
+    // Вмикаємо експоненціальний туман (Mode 1), 
+    // бо він найбільш плавно реагує на параметр Density
+    gl.uniform1i(uFogMode, 1); 
+}
+
+function updateSunRenderer(timeManager, gl) {
+    const phase = timeManager.dayPhase;
+    
+    // 🌞 ПОЗИЦІЯ СОНЦЯ (ellipse)
+    const sunAngle = phase * Math.PI * 2;
+    const sunHeight = Math.sin(phase * Math.PI) * 50;  // 0→50→0 по Y
+    const sunDistance = 100;
+    
+    const sunX = Math.cos(sunAngle) * sunDistance;
+    const sunY = 20 + sunHeight;
+    const sunZ = Math.sin(sunAngle) * sunDistance;
+    
+    // 🎨 BLEND ДВОХ ТЕКСТУР СОНЦЯ
+    let sunTexture1, sunTexture2, sunBlend;
+    
+    if (phase < 0.25 || phase >= 0.75) {
+        // Ранок/Ніч: жовте-помаранчеве сонце
+        sunTexture1 = sunTextureYellow;
+        sunTexture2 = sunTextureOrange;
+        sunBlend = Math.abs(Math.sin(phase * Math.PI * 4)) * 0.5;  // Пульсація
+    } else if (phase < 0.5) {
+        // День: яскраво-жовте сонце
+        sunTexture1 = sunTextureYellow;
+        sunTexture2 = sunTextureYellow;
+        sunBlend = 0;
+    } else {
+        // Вечір: червоне-помаранчеве сонце (закат)
+        sunTexture1 = sunTextureOrange;
+        sunTexture2 = sunTextureRed;
+        sunBlend = (phase - 0.5) / 0.25;  // 0→1
+    }
+    
+    // Встав позицію та текстури
+    gl.uniform3fv(uSunPos, [sunX, sunY, sunZ]);
+    gl.uniform1f(uSunBlend, sunBlend);
+    
+    // Малюй сонце як велику сферу
+    drawSun(sunX, sunY, sunZ, sunTexture1, sunTexture2, sunBlend);
+}
+
+
 const RIVER_PTS = [
     { x: 5,  z: 5  }, { x: 15, z: 15 }, { x: 25, z: 28 },
     { x: 36, z: 44 }, { x: 44, z: 56 }, { x: 56, z: 66 },
@@ -261,7 +450,6 @@ let uniforms = {};
  * @param {Object} newConfig - Nová konfigurace
  */
 async function reinitializeScene(newConfig) {
-    console.log('🔄 Reinicializuji scénu s novou konfigurací...', newConfig);
     
     // Vyčisti stare buffery pokud existují
     if (terrain) {
@@ -305,7 +493,30 @@ async function reinitializeScene(newConfig) {
     river = createRiver(terrain.getBaseHeight, 120);
     pebbles = createRiverPebbles(terrain.getHeight, terrain.getBaseHeight, river);
     
-    console.log('✅ Scéna reinicializována s novými parametry');
+// ══════════════════════════════════════════════════════════════════════════════
+    // ✅ PUNKT 19.1: COLLISION SYSTEM
+    // ══════════════════════════════════════════════════════════════════════════════
+    
+    collisionSystem = new CollisionSystem(
+        terrain.getHeight,
+        terrain.getBaseHeight,
+        120  // terrainSize
+    );
+    
+    // Додай дерева як collision objects
+    for (const tree of trees) {
+        collisionSystem.addCollisionObject(tree.x, tree.z, 2.5);
+    }
+    
+    // Додай колесо огляду
+    const wheelConfigInit = getConfig('ferrisWheel');
+    collisionSystem.addCollisionObject(
+        wheelConfigInit.position[0],
+        wheelConfigInit.position[2],
+        wheelConfigInit.radius + 5
+    );
+    
+    console.log('✅ Collision system aktualizován');
 }
 
 async function main() {
@@ -380,6 +591,25 @@ async function main() {
     ferrisWheel = initFerrisWheel(gl);
     birdBuffers = initBirdBuffers(gl);
 
+    collisionSystem = new CollisionSystem(
+        terrain.getHeight,
+        terrain.getBaseHeight,
+        120  // terrainSize
+    );
+    
+    // Додай дерева як collision objects
+    for (const tree of trees) {
+        collisionSystem.addCollisionObject(tree.x, tree.z, 2.5);
+    }
+    
+    // Додай колесо огляду
+    const wheelConfigCollision = getConfig('ferrisWheel');
+    collisionSystem.addCollisionObject(
+        wheelConfigCollision.position[0],
+        wheelConfigCollision.position[2],
+        wheelConfigCollision.radius + 5
+    );
+    
     // Create terrain buffers
     terrainBuffers = {
         vbo: gl.createBuffer(),
@@ -489,6 +719,7 @@ const splineControlPoints = [
     const uPointLightRadius = gl.getUniformLocation(program, "uPointLightRadius");
 
     const uUseLanternMultitex = gl.getUniformLocation(program, "uUseLanternMultitex");
+    const uIsLantern = gl.getUniformLocation(program, "uIsLantern");
     const uPaperTexture = gl.getUniformLocation(program, "uPaperTexture");
     const uBlikiTexture = gl.getUniformLocation(program, "uBlikiTexture");
     const uAlpha = gl.getUniformLocation(program, "uAlpha");
@@ -516,8 +747,22 @@ const splineControlPoints = [
 
     const uFogMode = gl.getUniformLocation(program, "uFogMode");
 
+    // ✅ PUNKT 18a: ДИНАМІЧНІ СВІТЛА
+    const uLightColor = gl.getUniformLocation(program, "uLightColor");
+    const uLightIntensity = gl.getUniformLocation(program, "uLightIntensity");
+    
+    // ✅ PUNKT 18b: ДИНАМІЧНА ТУМАНЕНЬ
+    const uFogColor = gl.getUniformLocation(program, "uFogColor");
+    const uFogDensity = gl.getUniformLocation(program, "uFogDensity");
+
     cloudBuffers = initCloudBuffers(gl);
     const uIsCloud = gl.getUniformLocation(program, "uIsCloud");
+
+    uTexMatrix = gl.getUniformLocation(program, "uTexMatrix");
+
+    cloudBuffers = initCloudBuffers(gl);
+
+    uTexMatrix = gl.getUniformLocation(program, "uTexMatrix");
 
     gl.uniform3fv(uLightPos, [50, 15, 10]); 
     gl.uniform3fv(uViewPos, [0, 0, 4]);
@@ -758,10 +1003,19 @@ const splineControlPoints = [
     // ✅ RENDER LOOP - (TÉMĚŘ NEZMĚNĚNO)
     // ══════════════════════════════════════════════════════════════════════════════
     
+    const timeManager = new TimeManager(15.0);
     function render() {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         const t = performance.now() * 0.001;
+        const timeData = timeManager.update(t);
+    
+        // Оновлюй все по часу
+        updateLightParameters(timeData, gl, uLightPos, uLightColor, uLightIntensity);
+        updateFogParameters(timeData, gl, uFogMode, uFogColor, uFogDensity);
+        // updateSkybox(timeData, gl, skyboxTextures);
+        // updateSunRenderer(timeData, gl);
+        
         gl.uniform1f(uTime, t);
         gl.uniform1i(uIsWater, 0);
 
@@ -773,16 +1027,15 @@ const splineControlPoints = [
         gl.uniform1i(uFogMode, 2);
 
         // ── UPDATE LIGHTING MODE (Z CONFIG) ──
+// ── UPDATE LIGHTING MODE (Z CONFIG) ──
         const sceneConfig = getConfig('scene');
         
         if (lightingMode === 0) {
-            gl.uniform3fv(uLightPos, [50, 15, 10]);
+            // ✅ Light now updated by updateLightParameters()
             gl.clearColor(...sceneConfig.backgroundColor, 1.0);
         } else if (lightingMode === 1) {
-            gl.uniform3fv(uLightPos, [-40, 30, 20]);
             gl.clearColor(0.05, 0.05, 0.15, 1.0); 
         } else if (lightingMode === 2) {
-            gl.uniform3fv(uLightPos, [50, 10, 10]);
             gl.clearColor(0.25, 0.15, 0.1, 1.0);
         }
 
@@ -827,20 +1080,41 @@ const splineControlPoints = [
         gl.uniform1f(uPointLightIntensity, pulsing * 1.5);
         gl.uniform1f(uPointLightRadius, 40.0);
  
+        // ✅ PUNKT 19.1: Применяй колізії для камери
+        if (activeCamera === cameraStatic || activeCamera === cameraSpline) {
+            // Статична камера - обмежуємо позицію
+            activeCamera.position = collisionSystem.resolveCollisions(activeCamera.position);
+        }
+        
+        // Orbit камера - лише bounds check (не близько до об'єктів)
+        if (activeCamera === cameraOrbit) {
+            const orbPos = activeCamera.position;
+            if (!collisionSystem.isWithinTerrainBounds(orbPos[0], orbPos[2])) {
+                activeCamera.position = collisionSystem.clampToTerrainBounds(orbPos);
+            }
+        }
+        
         activeCamera.update();
         gl.uniformMatrix4fv(uView, false, activeCamera.getViewMatrix());
 
-        gl.useProgram(skyboxProgram);
+       gl.useProgram(skyboxProgram);
         gl.uniform1f(uLightingMode, lightingMode);
+        
+        const phase = timeData.dayPhase;
+        const sunX = 80 - phase * 160;
+        const sunY = -0 + Math.sin(phase * Math.PI) * 80;
+        const sunZ = -80 - phase * 80;
+        
+        const uLightPosSky = gl.getUniformLocation(skyboxProgram, "uLightPos");
+        gl.uniform3fv(uLightPosSky, [sunX, sunY, sunZ]);
+        
+        const uDayPhaseSky = gl.getUniformLocation(skyboxProgram, "uDayPhase");
+        gl.uniform1f(uDayPhaseSky, phase);
 
-        // 1. Отримуємо локації саме для нового шейдера (vec2 aPosition та mat4 uInvViewProjection)
-
-        // 2. Викликаємо функцію з ПРАВИЛЬНИМИ аргументами
-                // 1. Отримуємо локації саме для нового шейдера (vec2 aPosition та mat4 uInvViewProjection)
-
-                renderSkybox(gl, skyboxBuffers, skyboxProgram, aPositionSky, uViewSky, uProjectionSky, activeCamera.getViewMatrix(), projection);
+        renderSkybox(gl, skyboxBuffers, skyboxProgram, aPositionSky, uViewSky, uProjectionSky, activeCamera.getViewMatrix(), projection);
         
         gl.useProgram(program);
+        updateLightParameters(timeData, gl, uLightPos, uLightColor, uLightIntensity);
 
         gl.uniformMatrix4fv(uProjection, false, projection);
         gl.uniformMatrix4fv(uView, false, activeCamera.getViewMatrix());
@@ -865,9 +1139,9 @@ const splineControlPoints = [
 
         renderTrees(gl, treeBuffers, trees, [-60, 0, -60], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower);
         renderRiver(gl, riverBuffers, river, [-60, 0, -60], t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uTime, waterTexture, uTexture, uIsWater);
-        renderPebbles(gl, pebbleBuffers, pebbles, [-60, 0, -60],  aPosition, aNormal, aTexCoord,  uModel, uObjectColor, uUseTexture, uIsWater, pebbleTexture, pebbleSpecTexture, uTexture, uSpecularMap, uIsPebble);
+        renderPebbles(gl, pebbleBuffers, pebbles, [-60, 0, -60],  aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, pebbleTexture, pebbleSpecTexture, uTexture, uSpecularMap, uIsPebble);
 
-        const wheelAngle = t * wheelConfig.rotationSpeed;
+        const wheelAngle = wheelIsRotating ? t * wheelConfig.rotationSpeed : 0;
         renderFerrisWheel(gl, ferrisWheel, wheelAngle, wheelCenterPos, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, cabinLightsOn);
 
         const WHEEL_RADIUS = wheelConfig.radius;
@@ -924,14 +1198,15 @@ const splineControlPoints = [
         gl.uniform1i(uPaperTexture, 3);
 
         // Малюємо
-        renderLanterns(gl, lanternBuffers, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsFlower, uIsWater, uIsCloud, uAlpha);
+        renderLanterns(gl, lanternBuffers, aPosition, aNormal, aTexCoord, uModel, uObjectColor,uUseTexture, uIsFlower, uIsWater, uIsCloud, uAlpha, uUseLanternMultitex, uIsLantern);
 
         // ПІСЛЯ малювання ліхтарів ОБОВ'ЯЗКОВО вимикаємо цей режим
         gl.uniform1i(uUseLanternMultitex, 0);
+
+        const identityMatrix = new Float32Array([1,0,0, 0,1,0, 0,0,1]);
+        gl.uniformMatrix3fv(uTexMatrix, false, identityMatrix);
         
-        // ════════════════════════════════════════════════════════════════════════
-        // ✨ RENDER FLOWERS, CLOUDS, BIRDS ✨
-        // ════════════════════════════════════════════════════════════════════════
+        // RENDER FLOWERS, CLOUDS, BIRDS
         
         renderFlowers(gl, flowerBuffers, flowers, [-60, 0, -60], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsFlower, flowerScales);
         renderClouds(gl, cloudBuffers, t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower, uIsCloud, uTime);
@@ -943,6 +1218,17 @@ const splineControlPoints = [
     }
 
     render();
+}
+
+function getTextureMatrix(t) {
+    const angle = t * 0.2;
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    return new Float32Array([
+        c, s, 0,
+       -s, c, 0,
+        0, 0, 1
+    ]);
 }
 
 main();

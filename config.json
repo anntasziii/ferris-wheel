@@ -37,7 +37,7 @@
     "lanternHeight": 5.0
   },
   "camera": {
-    "initialPosition": [0, 2, 6],
+    "initialPosition": [60, 10, 95],
     "fieldOfView": 1.047,
     "nearPlane": 0.1,
     "farPlane": 200.0

@@ -9,12 +9,14 @@ uniform mat4 uProjection;
 uniform mediump float uTime;
 uniform bool uIsFlower;
 uniform bool uIsWater;
+uniform mat3 uTexMatrix;
 
 // VARYING OUTPUTS
 varying vec3 vNormal;
 varying vec3 vPosition;
 varying vec2 vTexCoord;
 varying mediump float vTime;
+
 
 void main() {
     vec3 position = aPosition;
@@ -48,7 +50,7 @@ void main() {
     vec4 worldPosition = uModel * vec4(position, 1.0);
     vPosition = worldPosition.xyz;
     vNormal = mat3(uModel) * normal;
-    vTexCoord = aTexCoord;
+    vTexCoord = (uTexMatrix * vec3(aTexCoord, 1.0)).xy;
     vTime = uTime;
     
     // Transform to clip space

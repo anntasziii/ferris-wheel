@@ -7,6 +7,11 @@ precision mediump float;
 varying vec3 vDirection;
 uniform float uLightingMode;
 
+uniform vec3 uSunPosition;
+uniform float uDayPhase;
+
+uniform vec3 uLightPos;        // ✅ ОБОВ'ЯЗКОВО!
+
 void main() {
     vec3 rayDirection = normalize(vDirection);
     
@@ -14,13 +19,36 @@ void main() {
     vec3 skyColor;
 
     // SUNSET MODE
+// SUNSET MODE з ДИНАМІЧНИМ ОСВІТЛЕННЯМ
     if (uLightingMode < 0.5) {
-        vec3 zenithColor = vec3(0.5529, 0.7098, 1.0); 
-        vec3 midSkyColor = vec3(0.8627, 0.6157, 0.7647); 
-        vec3 horizonColor = vec3(0.8471, 0.4471, 0.2314);
-        vec3 sunGlowColor = vec3(1.0, 0.75, 0.2); 
-        vec3 groundColor = vec3(0.8471, 0.4471, 0.2314);
+        vec3 zenithColor, midSkyColor, horizonColor, groundColor;
+        
+        if (uDayPhase < 0.33) {
+            // РАНОК (0.0-0.33): Темно → Яскравий
+            float t = uDayPhase / 0.33;
+            zenithColor = mix(vec3(0.2, 0.3, 0.6), vec3(0.85, 0.9, 1.0), t);
+            midSkyColor = mix(vec3(0.4, 0.35, 0.7), vec3(0.8, 0.8, 1.0), t);
+            horizonColor = mix(vec3(0.3, 0.35, 0.7), vec3(0.6, 0.7, 1.0), t);
+            groundColor = mix(vec3(0.1, 0.08, 0.3), vec3(0.25, 0.2, 0.45), t);
+            
+        } else if (uDayPhase < 0.67) {
+            // ДЕНЬ (0.33-0.67): Яскраво-синє
+            float t = (uDayPhase - 0.33) / 0.34;
+            zenithColor = mix(vec3(0.85, 0.9, 1.0), vec3(0.88, 0.92, 1.0), t);
+            midSkyColor = mix(vec3(0.8, 0.8, 1.0), vec3(0.85, 0.87, 1.0), t);
+            horizonColor = mix(vec3(0.6, 0.7, 1.0), vec3(0.65, 0.75, 1.0), t);
+            groundColor = mix(vec3(0.25, 0.2, 0.45), vec3(0.3, 0.25, 0.5), t);
+            
+        } else {
+            // ВЕЧІР (0.67-1.0): Яскравий → Помаранчово-теплий
+            float t = (uDayPhase - 0.67) / 0.33;
+            zenithColor = mix(vec3(0.88, 0.92, 1.0), vec3(0.75, 0.55, 0.35), t);
+            midSkyColor = mix(vec3(0.85, 0.87, 1.0), vec3(1.0, 0.65, 0.25), t);
+            horizonColor = mix(vec3(0.65, 0.75, 1.0), vec3(1.0, 0.5, 0.15), t);
+            groundColor = mix(vec3(0.3, 0.25, 0.5), vec3(0.5, 0.3, 0.15), t);
+        }
 
+        // ✅ РЕШТА БЕЗ ЗМІН
         if (verticalHeight > 0.3) {
             float blendFactor = (verticalHeight - 0.3) / 0.7;
             skyColor = mix(midSkyColor, zenithColor, blendFactor);
@@ -35,10 +63,12 @@ void main() {
             skyColor = groundColor;
         }
 
-        vec3 sunDirection = normalize(vec3(1.0, 0.1, 0.0));
+        // ✅ Сонце з uLightPos
+        vec3 sunDirection = normalize(uLightPos);
         float sunAlignment = dot(rayDirection, sunDirection);
         float sunDisc = smoothstep(0.997, 1.0, sunAlignment);
         float sunHalo = smoothstep(0.95, 0.997, sunAlignment) * 0.4;
+        
         skyColor = mix(skyColor, vec3(1.0, 0.75, 0.2), sunHalo);
         skyColor = mix(skyColor, vec3(1.0, 0.95, 0.8), sunDisc);
     }
@@ -71,10 +101,10 @@ void main() {
     else if (uLightingMode < 2.5) {
         vec3 zenithColor = vec3(0.25, 0.35, 0.5);
         vec3 midSkyColor = vec3(0.8627, 0.6157, 0.7647); 
-        vec3 horizonColor = vec3(0.8471, 0.4471, 0.2314); 
+        vec3 horizonColor = vec3(0.4, 0.45, 0.97);
         vec3 fogColor = vec3(0.65, 0.6, 0.7); 
         vec3 sunGlowColor = vec3(1.0, 0.75, 0.2); 
-        vec3 groundColor = vec3(0.8471, 0.4471, 0.2314);
+        vec3 groundColor = vec3(0.32, 0.38, 0.96);
 
         if (verticalHeight > 0.3) {
             float blendFactor = (verticalHeight - 0.3) / 0.7;
