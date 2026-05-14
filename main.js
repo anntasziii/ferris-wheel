@@ -22,6 +22,133 @@ import {
     validateConfig 
 } from "./configLoader.js";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ✅ PUNKT 19.2: RAY-CASTING HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getRayFromMouse(viewMatrix, projMatrix, screenX, screenY) {
+    const projInv = invertMatrix4(projMatrix);
+    const viewInv = invertMatrix4(viewMatrix);
+    
+    const ndcX = screenX;
+    const ndcY = screenY;
+    const nearZ = -1.0;
+    
+    const nearWorld = multiplyMatrix4Vec4(viewInv, 
+        multiplyMatrix4Vec4(projInv, [ndcX, ndcY, nearZ, 1.0]));
+    
+    const rayOrigin = [nearWorld[0] / nearWorld[3], 
+                      nearWorld[1] / nearWorld[3], 
+                      nearWorld[2] / nearWorld[3]];
+    
+    const farZ = 1.0;
+    const farWorld = multiplyMatrix4Vec4(viewInv, 
+        multiplyMatrix4Vec4(projInv, [ndcX, ndcY, farZ, 1.0]));
+    
+    const farPoint = [farWorld[0] / farWorld[3], 
+                     farWorld[1] / farWorld[3], 
+                     farWorld[2] / farWorld[3]];
+    
+    const rayDir = normalize3([
+        farPoint[0] - rayOrigin[0],
+        farPoint[1] - rayOrigin[1],
+        farPoint[2] - rayOrigin[2]
+    ]);
+    
+    return { rayOrigin, rayDirection: rayDir };
+}
+
+function raySphereIntersection(rayOrigin, rayDir, sphereCenter, sphereRadius) {
+    const oc = [
+        rayOrigin[0] - sphereCenter[0],
+        rayOrigin[1] - sphereCenter[1],
+        rayOrigin[2] - sphereCenter[2]
+    ];
+    
+    const a = dot3(rayDir, rayDir);
+    const b = 2.0 * dot3(oc, rayDir);
+    const c = dot3(oc, oc) - sphereRadius * sphereRadius;
+    
+    const discriminant = b * b - 4 * a * c;
+    
+    if (discriminant < 0) {
+        return { hit: false, distance: Infinity };
+    }
+    
+    const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
+    const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
+    
+    const t = t1 > 0 ? t1 : (t2 > 0 ? t2 : -1);
+    
+    return { hit: t > 0, distance: t > 0 ? t : Infinity };
+}
+
+function invertMatrix4(m) {
+    const out = new Float32Array(16);
+    const a = m;
+    
+    const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+    const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+    const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+    const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+    
+    const b00 = a00 * a11 - a01 * a10;
+    const b01 = a00 * a12 - a02 * a10;
+    const b02 = a00 * a13 - a03 * a10;
+    const b03 = a01 * a12 - a02 * a11;
+    const b04 = a01 * a13 - a03 * a11;
+    const b05 = a02 * a13 - a03 * a12;
+    const b06 = a20 * a31 - a21 * a30;
+    const b07 = a20 * a32 - a22 * a30;
+    const b08 = a20 * a33 - a23 * a30;
+    const b09 = a21 * a32 - a22 * a31;
+    const b10 = a21 * a33 - a23 * a31;
+    const b11 = a22 * a33 - a23 * a32;
+    
+    let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    
+    if (!det) { return out; }
+    
+    det = 1 / det;
+    
+    out[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;
+    out[1] = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+    out[2] = (a31 * b05 - a32 * b04 + a33 * b03) * det;
+    out[3] = (a12 * b04 - a11 * b05 - a13 * b03) * det;
+    out[4] = (a12 * b08 - a10 * b11 - a13 * b07) * det;
+    out[5] = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+    out[6] = (a32 * b02 - a30 * b05 - a33 * b01) * det;
+    out[7] = (a10 * b05 - a12 * b02 + a13 * b01) * det;
+    out[8] = (a10 * b10 - a11 * b08 + a13 * b06) * det;
+    out[9] = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+    out[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det;
+    out[11] = (a11 * b02 - a10 * b04 - a12 * b00) * det;
+    out[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det;
+    out[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+    out[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
+    out[15] = (a10 * b03 - a11 * b01 + a12 * b00) * det;
+    
+    return out;
+}
+
+function multiplyMatrix4Vec4(m, v) {
+    return [
+        m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12] * v[3],
+        m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13] * v[3],
+        m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14] * v[3],
+        m[3] * v[0] + m[7] * v[1] + m[11] * v[2] + m[15] * v[3]
+    ];
+}
+
+function normalize3(v) {
+    const len = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+    return [v[0]/len, v[1]/len, v[2]/len];
+}
+
+function dot3(a, b) {
+    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+}
+
 let terrainVBO;
 let terrainNBO;
 let terrainIBO;
@@ -32,6 +159,13 @@ let pebbleSpecTexture;
 let uTexMatrix;
 let collisionSystem;
 let wheelIsRotating = true;
+let wheelPausedAngle = 0;  // 🔴 НОВА: зберігаємо кут при паузі
+let globalTime = 0;  // 🔴 НОВА: глобальний час для mousedown handler
+let wheelTimeOffset = 0;  // 🔴 НОВА: offset часу для плавного продовження
+
+// ✅ PUNKT 19.2: TREE AUTUMN ANIMATION
+let treeAutumnStates = [];     // true = жовте, false = зелене
+let treeAutumnProgress = [];   // 0-1, прогрес анімації
 
 /**
  * @brief Renders terrain with grass texture
@@ -490,6 +624,10 @@ async function reinitializeScene(newConfig) {
     const treeConfig = newConfig.terrain || getConfig('terrain');
     trees = createTrees(terrain.getHeight, terrain.getBaseHeight, RIVER_PTS, 80, treeConfig.gridSize);
     
+    // ✅ PUNKT 19.2: Ініціалізуємо стани для анімації дерев
+    treeAutumnStates = new Array(trees.length).fill(false);
+    treeAutumnProgress = new Array(trees.length).fill(0);
+    
     river = createRiver(terrain.getBaseHeight, 120);
     pebbles = createRiverPebbles(terrain.getHeight, terrain.getBaseHeight, river);
     
@@ -569,6 +707,10 @@ async function main() {
 
     trees = createTrees(terrain.getHeight, terrain.getBaseHeight, RIVER_PTS, 80, terrainConfig.gridSize);
     treeBuffers = initTreeBuffers(gl);
+    
+    // ✅ PUNKT 19.2: Ініціалізуємо стани для анімації дерев
+    treeAutumnStates = new Array(trees.length).fill(false);
+    treeAutumnProgress = new Array(trees.length).fill(0);
 
     river = createRiver(terrain.getBaseHeight, 120);
     riverBuffers = initRiverBuffers(gl, river);
@@ -649,12 +791,24 @@ async function main() {
     let splineTime = 0;
 
 const splineControlPoints = [
-    { x: -10, y: 15, z: 10 },
-    { x: -20, y: 20, z: -30 },
-    { x: 40, y: 25, z: -20 }, 
-    { x: 45, y: 18, z: 10 },  
-    { x: 40, y: 20, z: 40 },  
-    { x: 25, y: 15, z: 50 },
+    // --- ПІДГОТОВКА (Points -2, -1) ---
+    // Ці точки не бачить камера, вони лише задають напрямок входу в першу точку
+    { x: 85, y: 20, z: 110 },  // Дублюємо передостанню (P_end-1) | 25+60, 50+60
+    { x: 50, y: 20, z: 70 },   // Дублюємо першу (P0) | -10+60, 10+60
+
+    // --- ОСНОВНИЙ ШЛЯХ (Тут камера реально летить) ---
+    { x: 50, y: 20, z: 70 },   // P0: Початок біля озера | -10+60, 10+60
+    { x: 30, y: 20, z: 35 },   // P1: Западний схил | -35+60, -25+60
+    { x: 70, y: 20, z: 5 },    // P2: Центр над річкою | 10+60, -55+60
+    { x: 115, y: 20, z: 50 },  // P3: Проліт біля колеса | 55+60, -10+60
+    { x: 110, y: 20, z: 105 }, // P4: Північний схил | 50+60, 45+60
+    { x: 85, y: 20, z: 110 },  // P5: Повернення до низу | 25+60, 50+60
+
+    // --- ЗАЦИКЛЕННЯ (Points +1, +2) ---
+    // Ці точки потрібні, щоб коли камера переходить з P5 в P0, не було ривка
+    { x: 50, y: 20, z: 70 },   // Дублюємо P0 | -10+60, 10+60
+    { x: 30, y: 20, z: 35 },   // Дублюємо P1 | -35+60, -25+60
+    { x: 70, y: 20, z: 5 }     // Дублюємо P2 | 10+60, -55+60
 ];
 
     cameraStatic.position = [0, 10, 35];
@@ -849,12 +1003,105 @@ const splineControlPoints = [
         const clickScreenX = (clickStartX - rect.left) / rect.width * 2 - 1;
         const clickScreenY = 1 - (clickStartY - rect.top) / rect.height * 2;
         
-        let closestIndex = -1;
-        let closestScreenDist = Infinity;
+        console.log(`🖱️ CLICK: screenX=${clickScreenX.toFixed(2)}, screenY=${clickScreenY.toFixed(2)}`);
         
+        // ✅ FERRIS WHEEL PICKING - ПРОСТО ПЕРЕВІРИМО БЛИЗЬКО ЛИ ЦЕНТР
+        const wheelConfig = getConfig('ferrisWheel');
+        
+        // WORLD координати для picking
+        const wheelCenterWorld = [
+            wheelConfig.position[0] + 60,  // LOCAL → WORLD
+            wheelConfig.position[1],
+            wheelConfig.position[2] + 60   // LOCAL → WORLD
+        ];
+        
+        // Камера у world space
+        const camPos = activeCamera.position;
+        
+        console.log(`🎡 Wheel Center (WORLD):`, wheelCenterWorld);
+        console.log(`📷 Camera Position:`, camPos);
+        
+        // ✅ ПРОСТИЙ МЕТОД: якщо клік біля центра екрану - натискаємо на центр
+        // (коли дивимось на колесо прямо, центр завжди біля середини екрану)
+        const distFromCenter = Math.sqrt(clickScreenX * clickScreenX + clickScreenY * clickScreenY);
+        
+        console.log(`📏 Distance from screen center: ${distFromCenter.toFixed(3)}`);
+        console.log(`🎯 Threshold: 0.25`);
+        
+        // Якщо клік близько до центру екрану - вважаємо колесо натиснутим
+        if (distFromCenter < 0.25) {
+            // 🔴 ПОТОЧНИЙ ANGLE (з глобального часу)
+            const wheelConfig = getConfig('ferrisWheel');
+            const currentAngle = wheelIsRotating 
+                ? (globalTime - wheelTimeOffset) * wheelConfig.rotationSpeed  // 🔴 З offset!
+                : wheelPausedAngle;
+            
+            if (wheelIsRotating) {
+                // ПАУЗУЄМО - зберігаємо поточний кут
+                wheelPausedAngle = currentAngle;
+                wheelIsRotating = false;
+                console.log('⏹️ 🎡 Wheel PAUSED at angle:', wheelPausedAngle.toFixed(3));
+            } else {
+                // ПРОДОВЖУЄМО - обчислюємо offset щоб продовжити звідки припинили
+                wheelIsRotating = true;
+                wheelTimeOffset = globalTime - (wheelPausedAngle / wheelConfig.rotationSpeed);
+                console.log('▶️ 🎡 Wheel RESUMED from angle:', wheelPausedAngle.toFixed(3), 'timeOffset:', wheelTimeOffset.toFixed(3));
+            }
+        } else {
+            console.log('❌ Click too far from center');
+        }
+        
+        // ✅ TREES PICKING - для анімації сезону
         const viewMatrix = activeCamera.getViewMatrix();
         const aspect = canvas.width / canvas.height;
         const projMatrix = makePerspective(Math.PI / 3, aspect, 0.1, 200.0);
+        
+        let closestTreeIndex = -1;
+        let closestTreeScreenDist = Infinity;
+        
+        const treeTerrainOffset = [-60, 0, -60];  // Той же offset як у renderTrees
+        
+        for (let i = 0; i < trees.length; i++) {
+            const tree = trees[i];
+            
+            // 🔴 ВАЖНО: Додаємо terrainOffset, як у renderTrees!
+            const worldX = tree.x + treeTerrainOffset[0];  // world coords з offset
+            const worldY = (tree.y || 0) + treeTerrainOffset[1];
+            const worldZ = tree.z + treeTerrainOffset[2];  // world coords з offset
+            
+            const viewX = viewMatrix[0] * worldX + viewMatrix[4] * worldY + viewMatrix[8] * worldZ + viewMatrix[12];
+            const viewY = viewMatrix[1] * worldX + viewMatrix[5] * worldY + viewMatrix[9] * worldZ + viewMatrix[13];
+            const viewZ = viewMatrix[2] * worldX + viewMatrix[6] * worldY + viewMatrix[10] * worldZ + viewMatrix[14];
+            
+            if (viewZ >= 0) continue;  // За камерою
+            
+            const projX = projMatrix[0] * viewX + projMatrix[8] * viewZ;
+            const projY = projMatrix[5] * viewY + projMatrix[9] * viewZ;
+            const projW = projMatrix[11] * viewZ + projMatrix[15];
+            
+            const screenX = projX / projW;
+            const screenY = projY / projW;
+            
+            const screenDist = Math.sqrt(
+                (screenX - clickScreenX) * (screenX - clickScreenX) +
+                (screenY - clickScreenY) * (screenY - clickScreenY)
+            );
+            
+            // Radius дерева на екрані (більший, ніж у цветов)
+            if (screenDist < 0.15 && screenDist < closestTreeScreenDist) {
+                closestTreeScreenDist = screenDist;
+                closestTreeIndex = i;
+            }
+        }
+        
+        if (closestTreeIndex !== -1) {
+            treeAutumnStates[closestTreeIndex] = !treeAutumnStates[closestTreeIndex];
+            console.log('🌳 Tree', closestTreeIndex, 'toggled! State:', treeAutumnStates[closestTreeIndex] ? 'AUTUMN 🍂' : 'SUMMER 🌿');
+        }
+        
+        // ✅ FLOWERS PICKING - використовуємо ТІ ЖЕ viewMatrix і projMatrix
+        let closestIndex = -1;
+        let closestScreenDist = Infinity;
         
         for (let i = 0; i < flowers.length; i++) {
             const flower = flowers[i];
@@ -1008,6 +1255,7 @@ const splineControlPoints = [
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         const t = performance.now() * 0.001;
+        globalTime = t;  // 🔴 Зберігаємо для mousedown handler
         const timeData = timeManager.update(t);
     
         // Оновлюй все по часу
@@ -1022,6 +1270,21 @@ const splineControlPoints = [
         const animationSpeed = 0.08;
         for (let i = 0; i < flowerScales.length; i++) {
             flowerScales[i] += (flowerTargetScales[i] - flowerScales[i]) * animationSpeed;
+        }
+        
+        // ✅ PUNKT 19.2: Обновлюємо анімацію дерев (0.5 сек = 2 fps)
+        const treeAnimSpeed = 0.04;  // 0-1 за 0.5 сек (0.02 на frame при 60fps)
+        for (let i = 0; i < treeAutumnProgress.length; i++) {
+            if (treeAutumnStates[i]) {
+                treeAutumnProgress[i] = Math.min(1, treeAutumnProgress[i] + treeAnimSpeed);  // до жовтого
+            } else {
+                treeAutumnProgress[i] = Math.max(0, treeAutumnProgress[i] - treeAnimSpeed);  // до зеленого
+            }
+        }
+        
+        // 🔴 DEBUG: Логуємо стан дерев
+        if (treeAutumnProgress.some(p => p > 0 && p < 1)) {
+            console.log('🌳 Trees animation:', treeAutumnProgress.map((p, i) => `[${i}]=${p.toFixed(2)}`).join(' '));
         }
 
         gl.uniform1i(uFogMode, 2);
@@ -1054,7 +1317,12 @@ const splineControlPoints = [
         // ── UPDATE POINT LIGHTS (Z CONFIG) ──
         const lightsConfig = getConfig('lights');
         const wheelConfig = getConfig('ferrisWheel');
-        const wheelCenterPos = wheelConfig.position;
+        // ✅ PUNKT 19.2: wheelCenterPos у WORLD координатах для picking
+        const wheelCenterPos = [
+            wheelConfig.position[0] + 60,  // LOCAL → WORLD
+            wheelConfig.position[1],
+            wheelConfig.position[2] + 60   // LOCAL → WORLD
+        ];
         const numLights = lightsConfig.lanternCount;
         const lightRadius = lightsConfig.lanternDistance;
         const lanternHeight = lightsConfig.lanternHeight;
@@ -1137,12 +1405,27 @@ const splineControlPoints = [
         renderTerrain(gl, terrainBuffers, terrain, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uTexture, uUseTexture, grassTexture);
         gl.uniform1i(uUseGrassAnimation, 0);
 
-        renderTrees(gl, treeBuffers, trees, [-60, 0, -60], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower);
+        renderTrees(gl, treeBuffers, trees, [-60, 0, -60], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower, treeAutumnProgress);
         renderRiver(gl, riverBuffers, river, [-60, 0, -60], t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uTime, waterTexture, uTexture, uIsWater);
         renderPebbles(gl, pebbleBuffers, pebbles, [-60, 0, -60],  aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, pebbleTexture, pebbleSpecTexture, uTexture, uSpecularMap, uIsPebble);
 
-        const wheelAngle = wheelIsRotating ? t * wheelConfig.rotationSpeed : 0;
-        renderFerrisWheel(gl, ferrisWheel, wheelAngle, wheelCenterPos, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, cabinLightsOn);
+        // ✅ PUNKT 19.2: wheelCenterPos - ЛОКАЛЬНІ координати для rendering
+        const wheelCenterPosLocal = wheelConfig.position;
+        
+        // WORLD координати для picking
+        const wheelCenterPosWorld = [
+            wheelConfig.position[0] + 60,  // LOCAL → WORLD
+            wheelConfig.position[1],
+            wheelConfig.position[2] + 60   // LOCAL → WORLD
+        ];
+        
+        const wheelAngle = wheelIsRotating ? (t - wheelTimeOffset) * wheelConfig.rotationSpeed : wheelPausedAngle;
+        
+        // 🔴 ДЕБУГІНГ
+        if (Math.random() < 0.01) {  // логуємо рідко
+            console.log(`🎡 wheelIsRotating=${wheelIsRotating}, wheelAngle=${wheelAngle.toFixed(3)}, wheelPausedAngle=${wheelPausedAngle.toFixed(3)}, t=${t.toFixed(2)}, offset=${wheelTimeOffset.toFixed(3)}`);
+        }
+        renderFerrisWheel(gl, ferrisWheel, wheelAngle, wheelCenterPosLocal, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, cabinLightsOn);
 
         const WHEEL_RADIUS = wheelConfig.radius;
         const CAMERA_DISTANCE = 16.0; 
@@ -1152,9 +1435,9 @@ const splineControlPoints = [
         const cameraAngle = cabinA + Math.PI;
         
         cameraCabin.position = [
-            wheelCenterPos[0] + Math.cos(cameraAngle) * CAMERA_DISTANCE,
-            wheelCenterPos[1] + WHEEL_RADIUS + Math.sin(cameraAngle) * WHEEL_RADIUS,
-            wheelCenterPos[2] + CAMERA_Z_OFFSET  
+            wheelCenterPosLocal[0] + Math.cos(cameraAngle) * CAMERA_DISTANCE,
+            wheelCenterPosLocal[1] + WHEEL_RADIUS + Math.sin(cameraAngle) * WHEEL_RADIUS,
+            wheelCenterPosLocal[2] + CAMERA_Z_OFFSET  
         ];
         
         cameraCabin.targetYaw = cameraCabin.targetYaw || 0;

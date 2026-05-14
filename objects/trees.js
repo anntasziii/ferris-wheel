@@ -336,12 +336,13 @@ export function initTreeBuffers(gl) {
  * @param {number} uniformIsFlower - Is flower flag uniform location
  * @return {void}
  */
-export function renderTrees(gl, treeBuffers, treeInstances, terrainOffsetVector, attributePosition, attributeNormal, attributeTexCoord, uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater, uniformIsFlower) {
+export function renderTrees(gl, treeBuffers, treeInstances, terrainOffsetVector, attributePosition, attributeNormal, attributeTexCoord, uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater, uniformIsFlower, autumnProgress = []) {
     gl.uniform1i(uniformIsWater, 0);
     gl.uniform1i(uniformIsFlower, 0);
     gl.uniform1i(uniformUseTexture, 0);
 
-    for (const treeInstance of treeInstances) {
+    for (let idx = 0; idx < treeInstances.length; idx++) {
+        const treeInstance = treeInstances[idx];
         const treeBuffer = treeBuffers[treeInstance.type];
         const treeType = TREE_TYPES[treeInstance.type];
         
@@ -353,18 +354,18 @@ export function renderTrees(gl, treeBuffers, treeInstances, terrainOffsetVector,
         const sinRotation = Math.sin(treeInstance.angle);
 
         // Bind vertex attributes
-        gl.enableVertexAttribArray(attributePosition);
         gl.bindBuffer(gl.ARRAY_BUFFER, treeBuffer.vbo);
         gl.vertexAttribPointer(attributePosition, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attributePosition);
 
-        gl.enableVertexAttribArray(attributeNormal);
         gl.bindBuffer(gl.ARRAY_BUFFER, treeBuffer.nbo);
         gl.vertexAttribPointer(attributeNormal, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attributeNormal);
 
         if (attributeTexCoord >= 0) {
-            gl.enableVertexAttribArray(attributeTexCoord);
             gl.bindBuffer(gl.ARRAY_BUFFER, treeBuffer.tbo);
             gl.vertexAttribPointer(attributeTexCoord, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(attributeTexCoord);
         }
 
         // Set model matrix with rotation and scale
@@ -389,9 +390,32 @@ export function renderTrees(gl, treeBuffers, treeInstances, terrainOffsetVector,
         gl.uniform3fv(uniformObjectColor, branchColor);
         gl.drawArrays(gl.TRIANGLES, treeBuffer.trunkCount, treeBuffer.branchCount);
 
-        // Render foliage crown with stored color index
+        // Render foliage crown with autumn animation
         const selectedCrownColor = treeType.crownColors[treeInstance.colorIdx];
-        gl.uniform3fv(uniformObjectColor, selectedCrownColor);
+        
+        // ✅ PUNKT 19.2: Міксуємо колір листя (зелений → ЯСКРАВО ЖОВТИЙ)
+        const autumnT = autumnProgress[idx] || 0;  // 0 = зелене, 1 = жовте
+        const greenColor = selectedCrownColor;  // Оригінальний (зелений)
+        
+        // 🟨 ЯСКРАВО ЖОВТИЙ КОЛІР - більш насичений
+        const yellowColor = [
+            1.0,      // R: максимум червоного
+            0.55,     // G: середнє значення зеленого (дає насичений оранжевий)
+            0.0       // B: немає синього
+        ];
+        
+        const mixedColor = [
+            greenColor[0] * (1 - autumnT) + yellowColor[0] * autumnT,
+            greenColor[1] * (1 - autumnT) + yellowColor[1] * autumnT,
+            greenColor[2] * (1 - autumnT) + yellowColor[2] * autumnT
+        ];
+        
+        // 🔴 DEBUG: Логуємо перші 3 дерева
+        if (idx < 3 || autumnT > 0) {
+            console.log(`🌳 Tree ${idx}: autumnT=${autumnT.toFixed(2)}, green=[${greenColor.map(c => c.toFixed(2)).join(',')}], mixed=[${mixedColor.map(c => c.toFixed(2)).join(',')}]`);
+        }
+        
+        gl.uniform3fv(uniformObjectColor, mixedColor);
         gl.drawArrays(gl.TRIANGLES, treeBuffer.trunkCount + treeBuffer.branchCount, treeBuffer.crownCount);
     }
 }
