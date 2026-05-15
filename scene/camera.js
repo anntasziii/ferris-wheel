@@ -4,34 +4,15 @@
  */
 export class Camera {
     constructor() {
-        /** @type {Array<number>} Camera position in world space [x, y, z] */
         this.position = [0, 2, 6];
-        
-        /** @type {Array<number>} Camera target/look-at point [x, y, z] */
         this.target = [0, 0, 0];
-
-        /** @type {number} Current horizontal rotation angle in radians */
         this.yaw = 0;
-        
-        /** @type {number} Current vertical rotation angle in radians */
         this.pitch = 0;
-        
-        /** @type {number} Target horizontal rotation angle (for smooth interpolation) */
         this.targetYaw = 0;
-        
-        /** @type {number} Target vertical rotation angle (for smooth interpolation) */
         this.targetPitch = 0;
-
-        /** @type {number} Distance from target in orbit mode */
         this.distance = 6;
-        
-        /** @type {number} Mouse sensitivity factor for rotation */
         this.sensitivity = 0.005;
-        
-        /** @type {number} Interpolation smoothness factor (0-1) */
         this.smoothness = 0.08;
-
-        /** @type {boolean} True for orbit camera, false for free look camera */
         this.isOrbit = false; 
     }
 

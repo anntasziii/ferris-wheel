@@ -381,12 +381,10 @@ export function renderPebbles(gl, pebbleBuffers, pebbleInstances, terrainOffsetV
                                uniformModel, uniformObjectColor, uniformUseTexture, uniformIsWater,
                                pebbleTexture, pebbleSpecTexture, uTexture, uSpecularMap, uIsPebble) {
     
-    // 1. Налаштування режимів
     gl.uniform1i(uniformUseTexture, 1); 
     gl.uniform1i(uniformIsWater, 0);
     gl.uniform1i(uIsPebble, 1); 
 
-    // 2. Активація текстур (ТІЛЬКИ ТУТ, один раз для всіх камінців)
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, pebbleTexture);
     gl.uniform1i(uTexture, 0);
@@ -399,7 +397,6 @@ export function renderPebbles(gl, pebbleBuffers, pebbleInstances, terrainOffsetV
         const pebbleShapeBuffer = pebbleBuffers[pebbleInstance.shapeType ?? 0];
         if (!pebbleShapeBuffer) continue;
 
-        // Прив'язка буферів
         gl.bindBuffer(gl.ARRAY_BUFFER, pebbleShapeBuffer.vbo);
         gl.vertexAttribPointer(attributePosition, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(attributePosition);
@@ -414,7 +411,6 @@ export function renderPebbles(gl, pebbleBuffers, pebbleInstances, terrainOffsetV
             gl.enableVertexAttribArray(attributeTexCoord);
         }
 
-        // Розрахунок позиції та кольору
         const worldPositionX = pebbleInstance.x + terrainOffsetVector[0];
         const worldPositionY = pebbleInstance.y + terrainOffsetVector[1];
         const worldPositionZ = pebbleInstance.z + terrainOffsetVector[2];
@@ -425,7 +421,6 @@ export function renderPebbles(gl, pebbleBuffers, pebbleInstances, terrainOffsetV
             : [grayscaleValue, grayscaleValue - 0.02, grayscaleValue - 0.04];
         gl.uniform3fv(uniformObjectColor, pebbleColor);
 
-        // Матриця моделі
         const cosRotation = Math.cos(pebbleInstance.angle);
         const sinRotation = Math.sin(pebbleInstance.angle);
         const modelMatrix = new Float32Array([

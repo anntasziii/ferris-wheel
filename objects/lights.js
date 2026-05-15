@@ -1,13 +1,15 @@
 /**
- * @file lights.js
- * @brief Lantern (фонарик) creation and rendering module
- * @details Manages procedural lantern geometry and rendering around the ferris wheel
- */
-
-/**
- * @brief Initialize lantern buffers (кубики для ліхтариків)
- * @param {WebGLRenderingContext} gl - WebGL context
- * @return {Object} Object containing VBO, NBO, IBO and vertex count
+ * @brief Initialize GPU buffers for lantern cube geometry
+ * @param {WebGLRenderingContext} gl - WebGL rendering context
+ * @return {Object} Lantern buffer object with geometry and metadata
+ * @property {WebGLBuffer} vbo - Vertex Buffer Object containing position data
+ * @property {WebGLBuffer} nbo - Normal Buffer Object containing surface normals
+ * @property {WebGLBuffer} ibo - Index Buffer Object containing triangle indices
+ * @property {WebGLBuffer} tbo - Texture Buffer Object containing UV coordinates
+ * @property {number} vertexCount - Total number of indices for rendering
+ * @details Creates a unit cube centered at origin with proper normals and UVs.
+ *          Cube dimensions: 0.3 × 2.0 × 0.3 units in local space.
+ *          Each face has unique UV coordinates for texture mapping.
  */
 export function initLanternBuffers(gl) {
     const vertices = new Float32Array([
@@ -56,14 +58,21 @@ export function initLanternBuffers(gl) {
     ]);
 
     const indices = new Uint16Array([
-        0, 1, 2, 2, 3, 0,      // Back
-        4, 6, 5, 4, 7, 6,      // Front
-        8, 9, 10, 10, 11, 8,   // Left
-        12, 14, 13, 12, 15, 14, // Right
-        16, 18, 17, 16, 19, 18, // Bottom
-        20, 21, 22, 22, 23, 20  // Top
+        // Back face
+        0, 1, 2, 2, 3, 0, 
+        // Front face    
+        4, 6, 5, 4, 7, 6,
+         // Left face     
+        8, 9, 10, 10, 11, 8,
+        // Right face  
+        12, 14, 13, 12, 15, 14,
+        // Bottom face
+        16, 18, 17, 16, 19, 18, 
+        // Top face
+        20, 21, 22, 22, 23, 20  
     ]);
 
+    // Create buffers
     const vbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
@@ -102,11 +111,13 @@ export function initLanternBuffers(gl) {
  * @param {number} uIsWater - Is water flag uniform
  * @param {number} uIsCloud - Is cloud flag uniform
  * @param {number} uAlpha - Alpha transparency uniform (optional)
+ * @param {number} uUseLanternMultitex - Flag uniform to enable multi-texture blending mode
+ * @param {number} uIsLantern - Flag uniform to identify lantern objects
  */
 export function renderLanterns(
     gl, lanternBuffers, aPosition, aNormal, aTexCoord, uModel, uObjectColor,
     uUseTexture, uIsFlower, uIsWater, uIsCloud, uAlpha = null, 
-    uUseLanternMultitex, uIsLantern // Додайте ці uniform локації в аргументи!
+    uUseLanternMultitex, uIsLantern 
 ) {
     if (!lanternBuffers) return;
     
@@ -115,33 +126,36 @@ export function renderLanterns(
     const lanternDistance = 20.0;
     const lanternHeight = 5.0;
 
-    // 1. Загальна прив'язка буферів
+    // Bind all geometry buffers
     gl.bindBuffer(gl.ARRAY_BUFFER, lanternBuffers.vbo);
     gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(aPosition);
 
+    // Surface normals
     gl.bindBuffer(gl.ARRAY_BUFFER, lanternBuffers.nbo);
     gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(aNormal);
 
+    // Texture coordinates
     gl.bindBuffer(gl.ARRAY_BUFFER, lanternBuffers.tbo);
     gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(aTexCoord);
 
+    // Triangle indices
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lanternBuffers.ibo);
 
-    // Скидаємо прапори інших об'єктів
+    // Reset flags for non-lantern object types
     gl.uniform1i(uIsFlower, 0);
     gl.uniform1i(uIsWater, 0);
     gl.uniform1i(uIsCloud, 0);
 
+     // Render each lantern in the circle
     for (let i = 0; i < lanternCount; i++) {
         const angle = (Math.PI * 2 / lanternCount) * i;
         const lanternX = wheelCenter[0] + Math.cos(angle) * lanternDistance;
         const lanternZ = wheelCenter[2] + Math.sin(angle) * lanternDistance;
 
-        // --- ЕТАП 1: НІЖКА (Стовп) ---
-        // Вимикаємо ВСІ текстури, щоб вона була чисто чорною
+        // PART 1: RENDER LANTERN POLE
         gl.uniform1i(uUseTexture, 0);
         gl.uniform1i(uUseLanternMultitex, 0);
         gl.uniform1i(uIsLantern, 0);
@@ -153,11 +167,10 @@ export function renderLanterns(
             lanternX, lanternHeight - 3.0, lanternZ, 1
         ]);
         gl.uniformMatrix4fv(uModel, false, poleModel);
-        gl.uniform3fv(uObjectColor, [0.0, 0.0, 0.0]); // Чисто чорний
+        gl.uniform3fv(uObjectColor, [0.0, 0.0, 0.0]); 
         gl.drawElements(gl.TRIANGLES, lanternBuffers.count, gl.UNSIGNED_SHORT, 0);
 
-        // --- ЕТАП 2: ВНУТРІШНЄ СВІТЛО (Ядро) ---
-        // Теж без текстур, просто яскравий колір
+        // PART 2: RENDER INNER LIGHT GLOW
         const lightModel = new Float32Array([
             2.2, 0, 0, 0,
             0, 1.2, 0, 0,
@@ -168,13 +181,12 @@ export function renderLanterns(
         gl.uniform3fv(uObjectColor, [1.0, 0.95, 0.5]);
         gl.drawElements(gl.TRIANGLES, lanternBuffers.count, gl.UNSIGNED_SHORT, 0);
 
-        // --- ЕТАП 3: КОРПУС (Верхівка з подвійною текстурою) ---
-        // Вмикаємо мультитекстурування
+        // PART 3: RENDER LANTERN HOUSING
         gl.uniform1i(uUseTexture, 1); 
         gl.uniform1i(uUseLanternMultitex, 1);
         gl.uniform1i(uIsLantern, 1);
 
-        if (uAlpha !== null) gl.uniform1f(uAlpha, 0.7); // Трохи прозорості
+        if (uAlpha !== null) gl.uniform1f(uAlpha, 0.7);
 
         const headModel = new Float32Array([
             3.5, 0, 0, 0,
@@ -183,10 +195,10 @@ export function renderLanterns(
             lanternX, lanternHeight + 0.2, lanternZ, 1
         ]);
         gl.uniformMatrix4fv(uModel, false, headModel);
-        gl.uniform3fv(uObjectColor, [1.0, 1.0, 1.0]); // Колір 1,1,1 щоб не затіняти текстуру
+        gl.uniform3fv(uObjectColor, [1.0, 1.0, 1.0]); 
         gl.drawElements(gl.TRIANGLES, lanternBuffers.count, gl.UNSIGNED_SHORT, 0);
 
-        // Скидаємо прапори після малювання верхівки
+        // Reset flags after rendering lantern housing
         gl.uniform1i(uUseLanternMultitex, 0);
         gl.uniform1i(uIsLantern, 0);
         if (uAlpha !== null) gl.uniform1f(uAlpha, 1.0);

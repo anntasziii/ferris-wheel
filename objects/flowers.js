@@ -19,7 +19,7 @@ function createDetailedFlower(baseSize, petalCount, petalLength, petalWidth, pet
     const stemWidthScaled = baseSize * stemWidth;
     const stemHeightScaled = baseSize * stemHeight;
 
-    // ── STEM ──────────────────────────────────────────────────────────────────
+    // STEM
     const stemVertexData = [
         -stemWidthScaled, 0, 0,  stemWidthScaled, 0, 0,  stemWidthScaled, stemHeightScaled, 0,
         -stemWidthScaled, 0, 0,  stemWidthScaled, stemHeightScaled, 0, -stemWidthScaled, stemHeightScaled, 0,
@@ -30,14 +30,14 @@ function createDetailedFlower(baseSize, petalCount, petalLength, petalWidth, pet
     for (let i = 0; i < 12; i++) normalArray.push(0, 1, 0);
     for (let i = 0; i < 12; i++) textureCoordArray.push(0, 0);
 
-    // ── PETALS ────────────────────────────────────────────────────────────────
+    // PETALS
     const petalBaseY = stemHeightScaled;
     const petalRadius = baseSize * petalLength;
     const petalHalfWidth = baseSize * petalWidth;
     const petalSegmentCount = Math.max(6, Math.round(petalRoundness * 4));
 
     for (let petalIndex = 0; petalIndex < petalCount; petalIndex++) {
-        const verticalOffset = petalIndex * 0.001;  // Prevent z-fighting
+        const verticalOffset = petalIndex * 0.001;  
 
         const petalAngle = (petalIndex / petalCount) * Math.PI * 2;
         const cosPetalAngle = Math.cos(petalAngle);
@@ -67,7 +67,6 @@ function createDetailedFlower(baseSize, petalCount, petalLength, petalWidth, pet
             );
             normalArray.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
 
-            // Texture coordinates: center=0, edge=1 for color gradient
             textureCoordArray.push(
                 0.0, 0.0,
                 1.0, 0.0,
@@ -76,7 +75,7 @@ function createDetailedFlower(baseSize, petalCount, petalLength, petalWidth, pet
         }
     }
 
-    // ── FLOWER CENTER ─────────────────────────────────────────────────────────
+    // FLOWER CENTER
     const centerRadius = baseSize * 0.38;
     const centerY = petalBaseY + baseSize * 0.05;
     const centerSegmentCount = 10;
@@ -183,17 +182,14 @@ export function createFlowers(getTerrainHeight, getBaseTerrainHeight, flowerCoun
         const terrainHeightBase = getBaseTerrainHeight(flowerPositionX, flowerPositionZ);
         const riverBankHeight = terrainHeightFull - terrainHeightBase;
 
-        // Skip flowers on river banks (too steep)
         if (riverBankHeight > 0.1) continue;
 
-        // Check slope steepness
         const slopeStep = 1.0;
         const slopeDeltaX = Math.abs(getTerrainHeight(flowerPositionX + slopeStep, flowerPositionZ) - getTerrainHeight(flowerPositionX - slopeStep, flowerPositionZ));
         const slopeDeltaZ = Math.abs(getTerrainHeight(flowerPositionX, flowerPositionZ + slopeStep) - getTerrainHeight(flowerPositionX, flowerPositionZ - slopeStep));
         const maximumSlope = Math.max(slopeDeltaX, slopeDeltaZ);
         if (maximumSlope > 1.5) continue;
 
-        // Select random flower type
         const selectedType = FLOWER_TYPES[Math.floor(Math.random() * FLOWER_TYPES.length)];
         placedFlowers.push({
             x: flowerPositionX,

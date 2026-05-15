@@ -22,23 +22,24 @@ void main() {
     vec3 position = aPosition;
     vec3 normal = aNormal;
     
-    // ── DYNAMIC WATER DEFORMATION (гвинтова деформація) ──
+    // DYNAMIC WATER DEFORMATION
     if (uIsWater) {
-        // Радіус від центру річки
+        // Calculate radial distance from center of river
         float radius = length(vec2(position.x, position.z));
         
-        // Кут + спіраль
+        // Calculate spiral angle based on position and time
         float twist = atan(position.z, position.x) + radius * 0.2 + uTime;
         
-        // Спіральне зміщення
+        // Calculate radial offset (perpendicular to radius direction)
+        // Creates circular motion around center
         float offset = sin(twist) * 0.1;
         position.x += offset;
         position.z += offset;
         
-        // Вертикальна хвиля
+        // Calculate vertical wave deformation
         position.y += sin(uTime + radius) * 0.15;
         
-        // Деформуємо нормаль для правильного освітлення
+        // Recalculate surface normal for proper lighting
         normal = normalize(normal + vec3(
             cos(twist) * 0.1,
             sin(uTime) * 0.05,

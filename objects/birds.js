@@ -249,7 +249,6 @@ export function renderBirds(
     gl.uniform1i(uniformIsWater, 0);
     gl.uniform1i(uniformIsFlower, 0);
 
-    // ✅ PUNKT 14b: Вмикаємо режим птиці з текстурою
     gl.uniform1i(uniformIsBird, 1);
     gl.uniform1i(uniformUseTexture, 1);
     gl.activeTexture(gl.TEXTURE4);
@@ -325,7 +324,6 @@ export function renderBirds(
         gl.drawArrays(gl.TRIANGLES, 0, birdBuffers.count);
     }
 
-    // ✅ PUNKT 14b: Вимикаємо режим птиці після рендера
     gl.uniform1i(uniformIsBird, 0);
     gl.uniform1i(uniformUseTexture, 0);
 }

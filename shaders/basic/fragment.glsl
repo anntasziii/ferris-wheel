@@ -1,93 +1,81 @@
 precision mediump float;
 
-// ── VARYING INPUTS (interpolated from vertex shader) ──────────────────────
-varying vec3 vNormal;        // Surface normal vector in world space
-varying vec3 vPosition;       // Fragment position in world space
-varying vec2 vTexCoord;       // Texture coordinates [0-1]
-varying float vTime;          // Time value from vertex shader
+// VARYING INPUTS
+varying vec3 vNormal;
+varying vec3 vPosition;
+varying vec2 vTexCoord;
+varying float vTime;
 
-// ── UNIFORM INPUTS (constant for all fragments in draw call) ──────────────
-uniform vec3 uLightPos;       // Light source position for Phong shading
-uniform vec3 uViewPos;        // Camera position for Phong shading
-uniform vec3 uObjectColor;    // Base object color when no texture used (RGB)
-uniform sampler2D uTexture;   // 2D texture sampler
-uniform bool uUseTexture;     // Enable/disable texture mapping
-uniform float uTime;          // Animation time in seconds
-uniform bool uIsWater;        // Flag: render as water surface
-uniform bool uIsFlower;       // Flag: render as flower with gradient
-uniform bool uIsCloud;        // Flag: render as cloud with soft edges
+// UNIFORM INPUTS
+uniform vec3 uLightPos;
+uniform vec3 uViewPos;
+uniform vec3 uObjectColor;
+uniform sampler2D uTexture;
+uniform bool uUseTexture;
+uniform float uTime;
+uniform bool uIsWater;
+uniform bool uIsFlower;
+uniform bool uIsCloud;
 
-// ── SPOTLIGHT PARAMETERS (рефлектор) ──────────────────────────────────────
-uniform vec3 uSpotlightPos;      // Позиція рефлектора (слідує за камерою)
-uniform vec3 uSpotlightDir;      // Напрямок рефлектора (напрямок погляду камери)
-uniform vec3 uSpotlightColor;    // Колір рефлектора (RGB)
-uniform float uSpotlightIntensity; // Інтенсивність рефлектора (0-1)
-uniform float uSpotlightAngle;   // Кут рефлектора в радіанах (cosine of half-angle)
+// SPOTLIGHT PARAMETERS
+uniform vec3 uSpotlightPos;
+uniform vec3 uSpotlightDir;
+uniform vec3 uSpotlightColor;
+uniform float uSpotlightIntensity;
+uniform float uSpotlightAngle;
 
-// ── POINT LIGHT PARAMETERS (маяк у центрі колеса) ────────────────────────
-uniform vec3 uPointLightPos;      // Позиція point light (центр колеса)
-uniform vec3 uPointLightColor;    // Колір point light (RGB)
-uniform float uPointLightIntensity; // Інтенсивність point light (0-1)
-uniform float uPointLightRadius;  // Радіус впливу point light
+// POINT LIGHT PARAMETERS
+uniform vec3 uPointLightPos;
+uniform vec3 uPointLightColor;
+uniform float uPointLightIntensity;
+uniform float uPointLightRadius;
 
-// ── LANTERN MULTITEXTURING (punkt 12b) ──────────────────────────────────────
-uniform sampler2D uBlikiTexture;    // Блики (світлові лучі)
-uniform sampler2D uPaperTexture;    // Папір текстура
-uniform bool uUseLanternMultitex;   // Флаг для ліхтаря multitexturing
-uniform bool uIsLantern;            // Флаг "це ліхтарик"
+// LANTERN MULTITEXTURING
+uniform sampler2D uBlikiTexture;
+uniform sampler2D uPaperTexture;
+uniform bool uUseLanternMultitex;
+uniform bool uIsLantern;
 
-// ── BIRD TEXTURE TRANSFORMATION (punkt 14b) ─────────────────────────────────
-uniform bool uIsBird;               // Флаг "це птиця"
+// BIRD TEXTURE TRANSFORMATION
+uniform bool uIsBird;
 
-// ── GRASS ANIMATION (punkt 15b) ──────────────────────────────────────────────
-uniform sampler2D uGrassAnimationSheet;   // Велика текстура з кадрами трави
-uniform int uGrassGridX;                  // Кількість кадрів по X (4)
-uniform int uGrassGridY;                  // Кількість кадрів по Y (4)
-uniform int uGrassCurrentFrame;           // Поточний кадр (0-15)
-uniform bool uUseGrassAnimation;          // Флаг: використовувати анімацію трави
+// GRASS ANIMATION
+uniform sampler2D uGrassAnimationSheet;
+uniform int uGrassGridX;
+uniform int uGrassGridY;
+uniform int uGrassCurrentFrame;
+uniform bool uUseGrassAnimation;
 
-uniform int uFogMode;  // 0=off, 1=exponential, 2=linear
+// FOG PARAMETERS
+uniform int uFogMode;
+uniform vec3 uFogColor;
+uniform float uFogDensity;
 
-// ✅ PUNKT 18a: ДИНАМІЧНІ СВІТЛА ──────────────────────────────────────────
-uniform vec3 uLightColor;         // Колір основного світла (денне→нічне)
-uniform float uLightIntensity;    // Інтенсивність основного світла (0.3→1.0)
+// DYNAMIC LIGHT PARAMETERS
+uniform vec3 uLightColor;
+uniform float uLightIntensity;
 
-// ✅ PUNKT 18b: ДИНАМІЧНА ТУМАНЕНЬ ────────────────────────────────────────
-uniform vec3 uFogColor;           // Колір туманю (денний→нічний)
-uniform float uFogDensity;        // Щільність туманю (змінюється по часу)
+// SPECULAR MAP PARAMETERS
+uniform sampler2D uSpecularMap;
+uniform bool uIsPebble;
 
-// ── SPECULAR MAP (punkt 12c) ──────────────────────────────────────────────
-uniform sampler2D uSpecularMap;    // Specular map для каменів
-uniform bool uIsPebble;            // Флаг "це камінь"
-
-// ════════════════════════════════════════════════════════════════════════════
-// ✨ SPRITE SHEET ANIMATION FUNCTION (punkt 15b) ✨
-// ════════════════════════════════════════════════════════════════════════════
-
+// SPRITE SHEET ANIMATION FUNCTION
 vec2 getAnimationFrameUV(vec2 baseUV, int frameIndex, int gridX, int gridY) {
-    // Конвертуємо frameIndex у координати сітки (col, row)
     int col = frameIndex - (frameIndex / gridX) * gridX; 
     int row = frameIndex / gridX;
     
-    // Розмір одного кадру у нормалізованих координатах
     float frameWidth = 1.0 / float(gridX);
     float frameHeight = 1.0 / float(gridY);
     
-    // Offset для поточного кадру
     float offsetX = float(col) * frameWidth;
     float offsetY = float(row) * frameHeight;
     
-    // Масштабування UV у межах одного кадру
     vec2 scaledUV = baseUV * vec2(frameWidth, frameHeight);
     
-    // Додаємо offset кадру
     return scaledUV + vec2(offsetX, offsetY);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// ✨ TEXTURE TRANSFORMATION MATRIX (для птиці - punkt 14b) ✨
-// ════════════════════════════════════════════════════════════════════════════
-
+// TEXTURE TRANSFORMATION MATRIX
 mat2 rotationMatrix(float angle) {
     float c = cos(angle);
     float s = sin(angle);
@@ -95,41 +83,29 @@ mat2 rotationMatrix(float angle) {
 }
 
 vec2 transformTextureWithMatrix(vec2 uv, float time) {
-    // Центрирование координат [0.5, 0.5]
     vec2 centered = uv - 0.5;
     
-    // 1️⃣ МАСШТАБУВАННЯ (пульсує, період ~2 сек)
     float scale = 0.7 + 0.4 * sin(time * 1.5);
     vec2 scaled = centered * scale;
     
-    // 2️⃣ ПОВОРОТ (обертается, період ~4 сек)
     mat2 rotation = rotationMatrix(time * 0.8);
     vec2 rotated = rotation * scaled;
     
-    // 3️⃣ ПОСУН (рухається по хвилі)
     vec2 translated = rotated + 0.5;
     translated += vec2(sin(time * 0.5) * 0.25, cos(time * 0.5) * 0.25);
     
     return translated;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// ✨ LANTERN MULTITEXTURING - Bliki + Paper (punkt 12b) ✨
-// ════════════════════════════════════════════════════════════════════════════
-
-
+// LANTERN MULTITEXTURING - Bliki + Paper
 vec3 blendLanternTextures(vec3 baseColor, vec2 texCoord, float uvPattern) {
-    // Завантажь обидві текстури
     vec3 blikiColor = texture2D(uBlikiTexture, texCoord).rgb;
     vec3 paperColor = texture2D(uPaperTexture, texCoord).rgb;
     
-    // Плавне змішування на основі UV координат
-    float blend = sin(uvPattern * 6.28) * 0.5 + 0.5;  // Хвилі паттерну
+    float blend = sin(uvPattern * 6.28) * 0.5 + 0.5; 
     
-    // Комбіна: папір + блики
     vec3 blendedTexture = mix(paperColor, blikiColor, blend);
     
-    // Модулюй з базовим кольором
     return baseColor * blendedTexture;
 }
 
@@ -144,24 +120,20 @@ vec3 applyLinearFog(vec3 color) {
     
     return mix(fogColor, color, fogFactor);
 }
-// ────────────────────────────────────────────────────────────────────────────
 /**
  * @brief Applies exponential fog to color based on distance from camera
  * @param {vec3} color - Input color to apply fog to
  * @return {vec3} Color blended with fog
  */
 vec3 applyFog(vec3 color) {
-    float fogDensity = 0.012;                      // Fog intensity control
-    vec3 fogColor = vec3(0.65, 0.4, 0.22);        // Warm brownish fog color
+    float fogDensity = 0.012;
+    vec3 fogColor = vec3(0.65, 0.4, 0.22); 
 
-    // Calculate distance from camera to fragment
     float distanceFromCamera = length(vPosition - uViewPos);
     
-    // Exponential fog formula: visibility = e^(-density * distance)
     float fogFactor = exp(-fogDensity * distanceFromCamera);
     fogFactor = clamp(fogFactor, 0.0, 1.0);
 
-    // Interpolate between fog color and original color
     return mix(fogColor, color, fogFactor);
 }
 
@@ -178,12 +150,10 @@ vec3 calculateSpotlight(vec3 normal) {
         vec3 toFragment = normalize(vPosition - uSpotlightPos);
         float spotFactor = dot(toFragment, spotlightDir);
         
-        // Перевіримо чи фрагмент в межах рефлектора
         if (spotFactor > uSpotlightAngle) {
             float spotCone = (spotFactor - uSpotlightAngle) / (1.0 - uSpotlightAngle);
             spotCone = smoothstep(0.0, 1.0, spotCone);
             
-            // Розраховуємо освітленість від рефлектора
             float distance = length(vPosition - uSpotlightPos);
             float attenuation = 1.0 / (1.0 + 0.01 * distance * distance);
             
@@ -219,25 +189,20 @@ vec3 calculatePointLight(vec3 normal) {
     return pointLight;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 /**
  * @brief Main fragment shader entry point
  * @details Routes to specialized shaders based on uIsWater/uIsFlower/uIsCloud flags.
  *          Falls back to standard Phong lighting for regular geometry.
  */
 void main() {
-    // 1. Загальні вектори
     vec3 normalizedNormal = normalize(vNormal);
     vec3 lightDirection = normalize(uLightPos - vPosition);
     vec3 viewDirection = normalize(uViewPos - vPosition);
 
-    // 2. Ініціалізація базового кольору
     vec3 baseColor = uObjectColor; 
     float alpha = 1.0;
 
-    // ────────────────────────────────────────────────────────────────────────
     // WATER SURFACE SHADER
-    // ────────────────────────────────────────────────────────────────────────
     if (uIsWater) {
         // Scale and animate texture coordinates for flowing water effect
         vec2 textureUV = vTexCoord * 0.15;
@@ -246,49 +211,42 @@ void main() {
 
         // Sample texture and enhance contrast for more visible water patterns
         vec3 waterTextureSample = texture2D(uTexture, animatedUV).rgb;
-        waterTextureSample = (waterTextureSample - 0.5) * 1.8 + 0.5;  // Increase contrast
+        waterTextureSample = (waterTextureSample - 0.5) * 1.8 + 0.5; 
         waterTextureSample = clamp(waterTextureSample, 0.0, 1.0);
 
         // Blend texture with dark blue for realistic water appearance
         vec3 darkBlueWater = vec3(0.02, 0.1, 0.35);
         vec3 waterBaseColor = mix(darkBlueWater, waterTextureSample, 0.65);
-        waterBaseColor.b = min(waterBaseColor.b * 1.15, 1.0);  // Enhance blue channel
+        waterBaseColor.b = min(waterBaseColor.b * 1.15, 1.0); 
 
         // Phong lighting: ambient component
         float ambientIntensity = 0.4;
         vec3 ambientLight = ambientIntensity * waterBaseColor;
         
-        // Phong lighting: diffuse component...
+        // Phong lighting: diffuse component
         float diffuseIntensity = max(dot(normalizedNormal, lightDirection), 0.0);
 
         vec3 diffuseLight = diffuseIntensity * baseColor * uLightColor * uLightIntensity; 
         
-        // Phong lighting: specular component (sparkles on water)
+        // Phong lighting: specular component
         vec3 reflectionDirection = reflect(-lightDirection, normalizedNormal);
         float specularIntensity = pow(max(dot(viewDirection, reflectionDirection), 0.0), 64.0);
         vec3 specularLight = specularIntensity * vec3(1.0) * 0.6;
 
         // Combine all lighting components
-// 1. Обчислюємо освітлену воду (як у попередньому кроці)
         vec3 finalWaterColor = ambientLight + diffuseLight + specularLight;
         
-        // 2. Обчислюємо туман
         vec3 waterWithFog = finalWaterColor;
         if (uFogMode == 1) waterWithFog = applyFog(waterWithFog);
         else if (uFogMode == 2) waterWithFog = applyLinearFog(waterWithFog);
 
-        // 3. СЕКРЕТ: Змішуємо результат із туманом та без нього.
-        // Коефіцієнт 0.5 означає, що вода ніколи не стане блідішою, ніж на 50%.
-        // Це збереже синій колір, але «впише» береги в загальну атмосферу.
         vec3 balancedColor = mix(finalWaterColor, waterWithFog, 0.5);
 
         gl_FragColor = vec4(balancedColor, 0.9);
         return;
     }
 
-    // ────────────────────────────────────────────────────────────────────────
     // FLOWER SHADER
-    // ────────────────────────────────────────────────────────────────────────
     if (uIsFlower) {
         // Use texCoord.x to create center-to-edge color gradient on petals
         float petalGradient = clamp(vTexCoord.x, 0.0, 1.0);
@@ -319,14 +277,12 @@ void main() {
         return;
     }
 
-    // ────────────────────────────────────────────────────────────────────────
     // CLOUD SHADER
-    // ────────────────────────────────────────────────────────────────────────
     if (uIsCloud) {
         // Procedural cloud texture from multiple sine wave frequencies
         vec2 cloudUV = vTexCoord;
         float cloudFlow = uTime * 0.02;
-        cloudUV.x += cloudFlow;  // Horizontal animation
+        cloudUV.x += cloudFlow;
 
         // Combine multiple octaves of sine noise for natural cloud pattern
         float noiseSample1 = sin(cloudUV.x * 4.0 + cloudUV.y * 2.0) * 0.5 + 0.5;
@@ -356,25 +312,26 @@ void main() {
         gl_FragColor = vec4(finalCloudColor, cloudOpacity);
         return;
     }
-// ПЕРШЕ ОГОЛОШЕННЯ (залишаємо лише це)
+
+    // STANDARD PHONG LIGHTING
     float ambientIntensity = 0.2;
     vec3 ambientLight = ambientIntensity * baseColor;
 
-    // ✅ ЛІХТАРИК з multitexturing (punkt 12b)
+    // LANTERN MULTITEXTURING
     if (uUseLanternMultitex && uIsLantern) {
         float uvPattern = vTexCoord.x + vTexCoord.y;
         baseColor = blendLanternTextures(baseColor, vTexCoord, uvPattern);
         ambientLight = ambientIntensity * baseColor; 
     }
     
-    // ✅ ПТИЦЯ з матричною трансформацією (punkt 14b)
+    // BIRD TEXTURE TRANSFORMATION
     if (uIsBird && uUseTexture) {
         vec2 transformedUV = transformTextureWithMatrix(vTexCoord, uTime);
         baseColor = texture2D(uTexture, transformedUV).rgb;
         ambientLight = ambientIntensity * baseColor;
     }
 
-    // ✅ ТРАВА з sprite sheet анімацією (punkt 15b)
+    // GRASS ANIMATION
     if (uUseGrassAnimation && !uIsWater) {
         vec2 animatedUV = getAnimationFrameUV(vTexCoord, uGrassCurrentFrame, uGrassGridX, uGrassGridY);
         baseColor = texture2D(uGrassAnimationSheet, animatedUV).rgb;
@@ -383,41 +340,38 @@ void main() {
 
     float specularStrength = uUseTexture ? 0.1 : 0.5;
 
-    // ✅ КАМЕНІ з specular map (punkt 12c) - ПІСЛЯ оголошення!
+    // PEBBLE TEXTURE TRANSFORMATION
     if (uIsPebble && uUseTexture) {
         vec3 pebbleColor = texture2D(uTexture, vTexCoord).rgb;
         vec3 specularColor = texture2D(uSpecularMap, vTexCoord).rgb;
         
         baseColor = pebbleColor;
-        specularStrength = length(specularColor) * 0.8;  // ← ТЕПЕР OK!
+        specularStrength = length(specularColor) * 0.8; 
         
         ambientLight = ambientIntensity * baseColor;
     }
 
-    // Phong lighting: diffuse component...
+    // Phong lighting: diffuse component
     float diffuseIntensity = max(dot(normalizedNormal, lightDirection), 0.0);
 
     vec3 diffuseLight = diffuseIntensity * baseColor;
     
-    // Phong lighting: specular component (shiny reflections)
-    // Strength varies: higher for non-textured objects (smoother surfaces)
+    // Phong lighting: specular component
     vec3 reflectionDirection = reflect(-lightDirection, normalizedNormal);
     float specularIntensity = pow(max(dot(viewDirection, reflectionDirection), 0.0), 32.0);
     vec3 specularLight = specularStrength * specularIntensity * vec3(1.0);
 
-    // ── SPOTLIGHT (РЕФЛЕКТОР) ──
+    // SPOTLIGHT
     vec3 spotlightLight = vec3(0.0);
     if (uSpotlightIntensity > 0.0) {
         vec3 spotlightDir = normalize(uSpotlightDir);
         vec3 toFragment = normalize(vPosition - uSpotlightPos);
         float spotFactor = dot(toFragment, spotlightDir);
         
-        // Перевіримо чи фрагмент в межах рефлектора
         if (spotFactor > uSpotlightAngle) {
             float spotCone = (spotFactor - uSpotlightAngle) / (1.0 - uSpotlightAngle);
             spotCone = smoothstep(0.0, 1.0, spotCone);
             
-            // Розраховуємо освітленість від рефлектора
             float distance = length(vPosition - uSpotlightPos);
             float attenuation = 1.0 / (1.0 + 0.01 * distance * distance);
             
@@ -430,11 +384,11 @@ void main() {
     vec3 pointLight = calculatePointLight(normalizedNormal);
     vec3 finalLitColor = ambientLight + diffuseLight + specularLight + spotlightLight + pointLight;
 
-    // Detect cabin glass windows (cyan-ish color) and make semi-transparent
+    // Detect cabin glass windows
     float finalAlpha = 1.0;
     bool isCabinGlass = (uObjectColor.b > 0.85 && uObjectColor.r < 0.8 && uObjectColor.g > 0.8);
     if (isCabinGlass) {
-        finalAlpha = 0.35;  // Semi-transparent for realistic window appearance
+        finalAlpha = 0.35;
     }
     
     // Apply fog and render with calculated alpha

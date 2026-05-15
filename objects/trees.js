@@ -10,7 +10,7 @@ function createTree(trunkHeight = 1.5, trunkRadius = 0.15, crownHeight = 3.0, cr
     const vertices = [], normals = [], texcoords = [];
     const cylinderSegments = 150; 
 
-    // TRUNK
+    // Trunk
     for (let i = 0; i < cylinderSegments; i++) {
         const angle1 = (i / cylinderSegments) * Math.PI * 2;
         const angle2 = ((i+1) / cylinderSegments) * Math.PI * 2;
@@ -31,7 +31,7 @@ function createTree(trunkHeight = 1.5, trunkRadius = 0.15, crownHeight = 3.0, cr
     }
     const trunkVertexCount = cylinderSegments * 6;
 
-    // BRANCHES
+    // Branches
     const branchCount = 2;
     for (let branchIndex = 0; branchIndex < branchCount; branchIndex++) {
         const branchAngle = (branchIndex / branchCount) * Math.PI * 2;
@@ -62,7 +62,7 @@ function createTree(trunkHeight = 1.5, trunkRadius = 0.15, crownHeight = 3.0, cr
     }
     const branchVertexCount = branchCount * 6 * 6;
 
-    // FOLIAGE CROWN 
+    // Foliage crown
     const crownLayers = [
         { baseHeight: trunkHeight - 0.2, baseRadius: crownRadius*0.7, peakHeight: trunkHeight + crownHeight*0.45 },
         { baseHeight: trunkHeight + 0.05, baseRadius: crownRadius*1.05, peakHeight: trunkHeight + crownHeight*0.9 },
@@ -393,15 +393,13 @@ export function renderTrees(gl, treeBuffers, treeInstances, terrainOffsetVector,
         // Render foliage crown with autumn animation
         const selectedCrownColor = treeType.crownColors[treeInstance.colorIdx];
         
-        // ✅ PUNKT 19.2: Міксуємо колір листя (зелений → ЯСКРАВО ЖОВТИЙ)
-        const autumnT = autumnProgress[idx] || 0;  // 0 = зелене, 1 = жовте
-        const greenColor = selectedCrownColor;  // Оригінальний (зелений)
+        const autumnT = autumnProgress[idx] || 0; 
+        const greenColor = selectedCrownColor;
         
-        // 🟨 ЯСКРАВО ЖОВТИЙ КОЛІР - більш насичений
         const yellowColor = [
-            1.0,      // R: максимум червоного
-            0.55,     // G: середнє значення зеленого (дає насичений оранжевий)
-            0.0       // B: немає синього
+            1.0,   
+            0.55, 
+            0.0   
         ];
         
         const mixedColor = [
@@ -409,11 +407,6 @@ export function renderTrees(gl, treeBuffers, treeInstances, terrainOffsetVector,
             greenColor[1] * (1 - autumnT) + yellowColor[1] * autumnT,
             greenColor[2] * (1 - autumnT) + yellowColor[2] * autumnT
         ];
-        
-        // 🔴 DEBUG: Логуємо перші 3 дерева
-        if (idx < 3 || autumnT > 0) {
-            console.log(`🌳 Tree ${idx}: autumnT=${autumnT.toFixed(2)}, green=[${greenColor.map(c => c.toFixed(2)).join(',')}], mixed=[${mixedColor.map(c => c.toFixed(2)).join(',')}]`);
-        }
         
         gl.uniform3fv(uniformObjectColor, mixedColor);
         gl.drawArrays(gl.TRIANGLES, treeBuffer.trunkCount + treeBuffer.branchCount, treeBuffer.crownCount);

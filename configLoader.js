@@ -24,7 +24,7 @@ export async function loadConfig(configPath = './config.json') {
         return globalConfig;
     } catch (error) {
         console.error('Failed to load configuration:', error);
-        console.log('Using hardcoded defaults.');
+        console.log('Using hardcoded defaults');
         return getDefaultConfig();
     }
 }
@@ -84,7 +84,7 @@ export function updateConfig(path, value) {
     }
 
     current[lastPart] = value;
-    console.log(`📝 Config updated: ${path} = ${value}`);
+    console.log(`Config updated: ${path} = ${value}`);
 }
 
 /**
@@ -170,14 +170,13 @@ function getDefaultConfig() {
  */
 export function setupConfigReloadHotkey(reloadKey = 'r', configPath = './config.json') {
     window.addEventListener('keydown', (event) => {
-        // Check if user pressed Ctrl+R or Cmd+R
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === reloadKey) {
             event.preventDefault();
             reloadConfig(configPath);
         }
     });
 
-    console.log(`⌨️ Config reload hotkey registered: Ctrl+${reloadKey.toUpperCase()}`);
+    console.log(`Config reload hotkey registered: Ctrl+${reloadKey.toUpperCase()}`);
 }
 
 /**

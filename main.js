@@ -1,3 +1,4 @@
+// IMPORTS - SCENE OBJECTS
 import { Camera } from "./scene/camera.js";
 import { createTerrain } from "./objects/terrain.js";
 import { createFlowers, initFlowerBuffers, renderFlowers } from "./objects/flowers.js";
@@ -11,9 +12,7 @@ import { initLanternBuffers, renderLanterns } from "./objects/lights.js";
 import { CollisionSystem } from "./scene/collisions.js";
 
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ✅ NOVÁ: Import konfiguračního systému
-// ══════════════════════════════════════════════════════════════════════════════
+// IMPORTS - CONFIG
 import { 
     loadConfig, 
     getConfig, 
@@ -22,10 +21,14 @@ import {
     validateConfig 
 } from "./configLoader.js";
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ✅ PUNKT 19.2: RAY-CASTING HELPER FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════
-
+/**
+ * @brief Generates a ray from camera through a screen point
+ * @param {Float32Array} viewMatrix - Camera view matrix
+ * @param {Float32Array} projMatrix - Camera projection matrix
+ * @param {number} screenX - Normalized device X coordinate (-1 to 1)
+ * @param {number} screenY - Normalized device Y coordinate (-1 to 1)
+ * @return {Object} Ray with origin and direction {rayOrigin, rayDirection}
+ */
 function getRayFromMouse(viewMatrix, projMatrix, screenX, screenY) {
     const projInv = invertMatrix4(projMatrix);
     const viewInv = invertMatrix4(viewMatrix);
@@ -58,6 +61,14 @@ function getRayFromMouse(viewMatrix, projMatrix, screenX, screenY) {
     return { rayOrigin, rayDirection: rayDir };
 }
 
+/**
+ * @brief Tests intersection between a ray and a sphere
+ * @param {Array<number>} rayOrigin - Ray starting point [x, y, z]
+ * @param {Array<number>} rayDir - Ray direction (normalized) [x, y, z]
+ * @param {Array<number>} sphereCenter - Sphere center [x, y, z]
+ * @param {number} sphereRadius - Sphere radius
+ * @return {Object} Intersection result {hit: boolean, distance: number}
+ */
 function raySphereIntersection(rayOrigin, rayDir, sphereCenter, sphereRadius) {
     const oc = [
         rayOrigin[0] - sphereCenter[0],
@@ -83,6 +94,11 @@ function raySphereIntersection(rayOrigin, rayDir, sphereCenter, sphereRadius) {
     return { hit: t > 0, distance: t > 0 ? t : Infinity };
 }
 
+/**
+ * @brief Inverts a 4x4 matrix
+ * @param {Float32Array} m - Input matrix (4x4)
+ * @return {Float32Array} Inverted matrix
+ */
 function invertMatrix4(m) {
     const out = new Float32Array(16);
     const a = m;
@@ -131,6 +147,13 @@ function invertMatrix4(m) {
     return out;
 }
 
+
+/**
+ * @brief Multiplies a 4x4 matrix by a 4D vector
+ * @param {Float32Array} m - 4x4 matrix
+ * @param {Array<number>} v - 4D vector
+ * @return {Array<number>} Result vector (4D)
+ */
 function multiplyMatrix4Vec4(m, v) {
     return [
         m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12] * v[3],
@@ -140,15 +163,27 @@ function multiplyMatrix4Vec4(m, v) {
     ];
 }
 
+/**
+ * @brief Normalizes a 3D vector
+ * @param {Array<number>} v - 3D vector [x, y, z]
+ * @return {Array<number>} Normalized vector (length = 1)
+ */
 function normalize3(v) {
     const len = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
     return [v[0]/len, v[1]/len, v[2]/len];
 }
 
+/**
+ * @brief Calculates dot product of two 3D vectors
+ * @param {Array<number>} a - First 3D vector
+ * @param {Array<number>} b - Second 3D vector
+ * @return {number} Dot product scalar
+ */
 function dot3(a, b) {
     return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
 }
 
+// CONSTANTS
 let terrainVBO;
 let terrainNBO;
 let terrainIBO;
@@ -159,27 +194,26 @@ let pebbleSpecTexture;
 let uTexMatrix;
 let collisionSystem;
 let wheelIsRotating = true;
-let wheelPausedAngle = 0;  // 🔴 НОВА: зберігаємо кут при паузі
-let globalTime = 0;  // 🔴 НОВА: глобальний час для mousedown handler
-let wheelTimeOffset = 0;  // 🔴 НОВА: offset часу для плавного продовження
+let wheelPausedAngle = 0;  
+let globalTime = 0; 
+let wheelTimeOffset = 0;
 
-// ✅ PUNKT 19.2: TREE AUTUMN ANIMATION
-let treeAutumnStates = [];     // true = жовте, false = зелене
-let treeAutumnProgress = [];   // 0-1, прогрес анімації
+let treeAutumnStates = [];
+let treeAutumnProgress = []; 
 
 /**
- * @brief Renders terrain with grass texture
+ * @brief Renders terrain geometry with grass texture
  * @param {WebGLRenderingContext} gl - WebGL context
- * @param {Object} terrainBuffers - Object containing VBO, NBO, IBO and TBO for terrain
- * @param {Object} terrain - Terrain data (vertex count, etc.)
- * @param {number} aPosition - Attribute location for position in shader
- * @param {number} aNormal - Attribute location for normal in shader
- * @param {number} aTexCoord - Attribute location for texture coordinates in shader
- * @param {number} uModel - Uniform location for model matrix
- * @param {number} uObjectColor - Uniform location for object color
- * @param {number} uTexture - Uniform location for texture
- * @param {number} uUseTexture - Uniform location for texture usage flag
- * @param {WebGLTexture} grassTexture - Grass texture
+ * @param {Object} terrainBuffers - GPU buffers {vbo, nbo, ibo, tbo}
+ * @param {Object} terrain - Terrain data {count, vertices, normals, indices}
+ * @param {number} aPosition - Position attribute location
+ * @param {number} aNormal - Normal attribute location
+ * @param {number} aTexCoord - Texture coordinate attribute location
+ * @param {number} uModel - Model matrix uniform location
+ * @param {number} uObjectColor - Object color uniform location
+ * @param {number} uTexture - Texture uniform location
+ * @param {number} uUseTexture - Use texture flag uniform location
+ * @param {WebGLTexture} grassTexture - Loaded grass texture
  */
 function renderTerrain(gl, terrainBuffers, terrain, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uTexture, uUseTexture, grassTexture) {
     gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffers.vbo);
@@ -213,11 +247,22 @@ function renderTerrain(gl, terrainBuffers, terrain, aPosition, aNormal, aTexCoor
     gl.uniform1i(uUseTexture, 0);
 }
 
+/**
+ * @brief Loads shader source from URL
+ * @param {string} url - URL to shader file
+ * @return {Promise<string>} Shader source code
+ */
 async function loadShaderSource(url) {
     const response = await fetch(url);
     return await response.text();
 }
 
+/**
+ * @brief Loads texture from image file
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @param {string} url - Image URL
+ * @return {WebGLTexture} Loaded texture
+ */
 function loadTexture(gl, url) {
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -253,6 +298,13 @@ function loadTexture(gl, url) {
     return texture;
 }
 
+/**
+ * @brief Loads and compiles shader
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @param {number} type - gl.VERTEX_SHADER or gl.FRAGMENT_SHADER
+ * @param {string} source - Shader source code
+ * @return {WebGLShader} Compiled shader
+ */
 function createShader(gl, type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -266,6 +318,13 @@ function createShader(gl, type, source) {
     return shader;
 }
 
+/**
+ * @brief Links compiled shaders into program
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @param {WebGLShader} vs - Compiled vertex shader
+ * @param {WebGLShader} fs - Compiled fragment shader
+ * @return {WebGLProgram} Linked program
+ */
 function createProgram(gl, vs, fs) {
     const program = gl.createProgram();
     gl.attachShader(program, vs);
@@ -280,6 +339,15 @@ function createProgram(gl, vs, fs) {
     return program;
 }
 
+/**
+ * @brief Catmull-Rom interpolation for smooth curve approximation
+ * @param {number} p0 - First control point value
+ * @param {number} p1 - Second control point value
+ * @param {number} p2 - Third control point value
+ * @param {number} p3 - Fourth control point value
+ * @param {number} t - Interpolation parameter (0.0 to 1.0)
+ * @return {number} Interpolated value
+ */
 function catmullRom(p0, p1, p2, p3, t) {
     const t2 = t * t;
     const t3 = t2 * t;
@@ -291,7 +359,12 @@ function catmullRom(p0, p1, p2, p3, t) {
         (-p0 + 3 * p1 - 3 * p2 + p3) * t3
     );
 }
-
+/**
+ * @brief Calculates position on spline at parameter t
+ * @param {Array<Object>} controlPoints - Array of {x, y, z} control points
+ * @param {number} t - Spline parameter (0.0 to 1.0, wraps)
+ * @return {Object} Position {x, y, z} on spline
+ */
 function getSplinePosition(controlPoints, t) {
     const n = controlPoints.length;
     const scaledT = t * n;
@@ -310,6 +383,12 @@ function getSplinePosition(controlPoints, t) {
     };
 }
 
+/**
+ * @brief Calculates tangent vector on spline at parameter t
+ * @param {Array<Object>} controlPoints - Array of {x, y, z} control points
+ * @param {number} t - Spline parameter (0.0 to 1.0, wraps)
+ * @return {Object} Tangent vector {x, y, z}
+ */
 function getSplineTangent(controlPoints, t) {
     const n = controlPoints.length;
     const scaledT = t * n;
@@ -336,7 +415,11 @@ function getSplineTangent(controlPoints, t) {
         z: catmullRomDerivative(p0.z, p1.z, p2.z, p3.z, localT)
     };
 }
-
+/**
+ * @brief Normalizes a vector object {x, y, z}
+ * @param {Object} v - Vector with x, y, z properties
+ * @return {Object} Normalized vector object
+ */
 function normalizeVector(v) {
     const length = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
     if (length === 0) return { x: 0, y: 0, z: 1 };
@@ -347,6 +430,13 @@ function normalizeVector(v) {
     };
 }
 
+/**
+ * @brief Calculates target look-at point for camera following spline
+ * @param {Object} position - Current position {x, y, z}
+ * @param {Object} tangent - Spline tangent {x, y, z}
+ * @param {number} distance - Distance to look ahead (default 15.0)
+ * @return {Array<number>} Target point [x, y, z]
+ */
 function getSplineTarget(position, tangent, distance = 15.0) {
     const normalizedTangent = normalizeVector(tangent);
     return [
@@ -356,6 +446,14 @@ function getSplineTarget(position, tangent, distance = 15.0) {
     ];
 }
 
+/**
+ * @brief Creates perspective projection matrix
+ * @param {number} fovY - Vertical FOV in radians
+ * @param {number} aspect - Width / height ratio
+ * @param {number} near - Distance to near clipping plane
+ * @param {number} farPlane - Distance to far clipping plane
+ * @return {Float32Array} 4x4 perspective projection matrix
+ */
 function makePerspective(fovY, aspect, near, far) {
     const f = 1.0 / Math.tan(fovY / 2);
     return new Float32Array([
@@ -366,13 +464,26 @@ function makePerspective(fovY, aspect, near, far) {
     ]);
 }
 
+/**
+ * @brief Manages day/night cycle time progression
+ * @details Converts real time into normalized day phase for lighting calculations
+ */
 class TimeManager {
-    constructor(cycleDuration = 15.0) {  // ✅ Змінено на 15 сек
+    /**
+     * @brief Constructs TimeManager
+     * @param {number} cycleDurationSeconds - Total duration of day cycle (default 15.0)
+     */
+    constructor(cycleDuration = 15.0) {
         this.cycleTime = 0;
         this.cycleDuration = cycleDuration;
         this.dayPhase = 0;
     }
 
+    /**
+     * @brief Updates time manager with real elapsed time
+     * @param {number} realTimeSeconds - Current time in seconds
+     * @return {Object} Time data including phase and light intensity
+     */
     update(realTime) {
         this.cycleTime = (realTime % this.cycleDuration) / this.cycleDuration;
         this.dayPhase = this.cycleTime;
@@ -380,9 +491,7 @@ class TimeManager {
         return {
             cycleTime: this.cycleTime,
             dayPhase: this.dayPhase,
-            // Sine波 для плавних переходів
             lightIntensity: 0.5 + 0.5 * Math.sin(this.cycleTime * Math.PI * 2),
-            // Різні фази дня
             isMorning: this.dayPhase < 0.25,
             isDay: 0.25 <= this.dayPhase && this.dayPhase < 0.5,
             isEvening: 0.5 <= this.dayPhase && this.dayPhase < 0.75,
@@ -390,13 +499,16 @@ class TimeManager {
         };
     }
 }
-
+/**
+ * @brief Aktualizuje parametry slunečního světla (pozice, barva, intenzita)
+ * @param {Object} timeData - Časová data
+ * @param {Object} uniforms - Shader uniforms
+ */
 function updateLightParameters(timeManager, gl, uLightPos, uLightColor, uLightIntensity) {
     const phase = timeManager.dayPhase;
     
-    // ☀️ ПОЗИЦІЯ СОНЦЯ (по небу)
     const sunAngle = phase * Math.PI * 2;
-    const sunHeight = Math.sin(phase * Math.PI) * 40;  // 0→40→0
+    const sunHeight = Math.sin(phase * Math.PI) * 40; 
     const sunDistance = 80;
     
     const sunX = Math.cos(sunAngle) * sunDistance;
@@ -404,52 +516,51 @@ function updateLightParameters(timeManager, gl, uLightPos, uLightColor, uLightIn
     const sunZ = Math.sin(sunAngle) * sunDistance;
     
     gl.uniform3fv(uLightPos, [sunX, sunY, sunZ]);
-    
-    // 🎨 КОЛІР СВІТЛА (теплий→жовтий→вечірній→темний)
     let lightColor = [1.0, 1.0, 1.0];
     
     if (phase < 0.25) {
-        // Ранок: синій→жовтий
         const t = phase / 0.25;
         lightColor = [
-            0.3 + t * 0.7,  // R: 0.3→1.0
-            0.3 + t * 0.7,  // G: 0.3→1.0
-            1.0 - t * 0.5   // B: 1.0→0.5
+            0.3 + t * 0.7, 
+            0.3 + t * 0.7, 
+            1.0 - t * 0.5 
         ];
     } else if (phase < 0.5) {
-        // День: жовтий→помаранчевий
         const t = (phase - 0.25) / 0.25;
         lightColor = [
             1.0,
-            0.8 - t * 0.3,  // G: 0.8→0.5
-            0.5 - t * 0.3   // B: 0.5→0.2
+            0.8 - t * 0.3, 
+            0.5 - t * 0.3 
         ];
     } else if (phase < 0.75) {
-        // Вечір: помаранчевий→темно-синій
         const t = (phase - 0.5) / 0.25;
         lightColor = [
-            1.0 - t * 0.8,  // R: 1.0→0.2
-            0.5 - t * 0.4,  // G: 0.5→0.1
-            0.2 + t * 0.3   // B: 0.2→0.5
+            1.0 - t * 0.8, 
+            0.5 - t * 0.4,
+            0.2 + t * 0.3 
         ];
     } else {
-        // Ніч: темно-синій (зіркова ніч)
         lightColor = [0.2, 0.1, 0.5];
     }
     
     gl.uniform3fv(uLightColor, lightColor);
     
-    // 💡 ІНТЕНСИВНІСТЬ СВІТЛА
-    const intensity = 0.3 + Math.sin(phase * Math.PI) * 0.7;  // 0.3→1.0→0.3
+    const intensity = 0.3 + Math.sin(phase * Math.PI) * 0.7;
     gl.uniform1f(uLightIntensity, intensity);
 }
 
-
-
+/**
+ * @brief Updates fog parameters based on time of day
+ * @param {TimeManager} timeManager - Time management instance
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @param {WebGLUniformLocation} uFogMode - Fog mode uniform
+ * @param {WebGLUniformLocation} uFogColor - Fog color uniform
+ * @param {WebGLUniformLocation} uFogDensity - Fog density uniform
+ */
 function updateFogParameters(timeManager, gl, uFogMode, uFogColor, uFogDensity) {
     const phase = timeManager.dayPhase;
     
-    // 🌫️ КОЛІР ТУМАНУ
+    // Calculate fog color based on time
     let fogColor = [0.45, 0.60, 0.80];
     
     if (phase < 0.2) {
@@ -459,7 +570,7 @@ function updateFogParameters(timeManager, gl, uFogMode, uFogColor, uFogDensity) 
         const t = (phase - 0.2) / 0.1;
         fogColor = [0.30 + t * 0.15, 0.45 + t * 0.15, 0.65 + t * 0.15];
     } else if (phase < 0.7) {
-        fogColor = [0.45, 0.60, 0.80]; // Чистий денний колір
+        fogColor = [0.45, 0.60, 0.80]; 
     } else if (phase < 0.8) {
         const t = (phase - 0.7) / 0.1;
         fogColor = [0.45 - t * 0.25, 0.60 - t * 0.35, 0.80 - t * 0.30];
@@ -470,87 +581,87 @@ function updateFogParameters(timeManager, gl, uFogMode, uFogColor, uFogDensity) 
     
     gl.uniform3fv(uFogColor, fogColor);
     
-    // 🌫️ ЩІЛЬНІСТЬ ТУМАНУ
     let fogDensity = 0.0;
     
-    const nightDensity = 0.025;   // Максимальна густота вночі
-    const morningDensity = 0.012; // Легкий туман на світанку
-    const zeroDensity = 0.0;      // ПОВНА ВІДСУТНІСТЬ туману вдень
+    // Calculate fog density (heavier at night and dawn)
+    const nightDensity = 0.025;   
+    const morningDensity = 0.012; 
+    const zeroDensity = 0.0;    
 
     if (phase < 0.2) {
-        // Ранок: від нічного до ранкового
         const t = phase / 0.2;
         fogDensity = mix(nightDensity, morningDensity, t);
     } else if (phase < 0.3) {
-        // Перехід до дня: туман повністю розсіюється
         const t = (phase - 0.2) / 0.1;
         fogDensity = mix(morningDensity, zeroDensity, t);
     } else if (phase < 0.7) {
-        // ДЕНЬ: Туману немає
         fogDensity = zeroDensity; 
     } else if (phase < 0.8) {
-        // Вечір: починає з'являтися
         const t = (phase - 0.7) / 0.1;
         fogDensity = mix(zeroDensity, 0.015, t);
     } else {
-        // Ніч: густішає до максимуму
         const t = (phase - 0.8) / 0.2;
         fogDensity = mix(0.015, nightDensity, t);
     }
     
     gl.uniform1f(uFogDensity, fogDensity);
     
-    // Внутрішня функція міксування
     function mix(a, b, t) {
         return a * (1.0 - t) + b * t;
     }
 
-    // Вмикаємо експоненціальний туман (Mode 1), 
-    // бо він найбільш плавно реагує на параметр Density
     gl.uniform1i(uFogMode, 1); 
 }
 
+/**
+ * @brief Updates sun position and appearance based on time of day
+ * @param {TimeManager} timeManager - Time management instance with day phase
+ * @param {WebGLRenderingContext} gl - WebGL context
+ * @param {Function} renderSunGeometry - Callback function to render sun quad
+ * @details Sun moves in an elliptical arc across the sky. Texture blending
+ *          transitions between yellow (morning), white (day), orange (evening),
+ *          and red (sunset) to match time-of-day lighting.
+ */
 function updateSunRenderer(timeManager, gl) {
     const phase = timeManager.dayPhase;
     
-    // 🌞 ПОЗИЦІЯ СОНЦЯ (ellipse)
     const sunAngle = phase * Math.PI * 2;
-    const sunHeight = Math.sin(phase * Math.PI) * 50;  // 0→50→0 по Y
+    const sunHeight = Math.sin(phase * Math.PI) * 50; 
     const sunDistance = 100;
     
     const sunX = Math.cos(sunAngle) * sunDistance;
     const sunY = 20 + sunHeight;
     const sunZ = Math.sin(sunAngle) * sunDistance;
     
-    // 🎨 BLEND ДВОХ ТЕКСТУР СОНЦЯ
     let sunTexture1, sunTexture2, sunBlend;
     
     if (phase < 0.25 || phase >= 0.75) {
-        // Ранок/Ніч: жовте-помаранчеве сонце
         sunTexture1 = sunTextureYellow;
         sunTexture2 = sunTextureOrange;
-        sunBlend = Math.abs(Math.sin(phase * Math.PI * 4)) * 0.5;  // Пульсація
+        sunBlend = Math.abs(Math.sin(phase * Math.PI * 4)) * 0.5;  
     } else if (phase < 0.5) {
-        // День: яскраво-жовте сонце
         sunTexture1 = sunTextureYellow;
         sunTexture2 = sunTextureYellow;
         sunBlend = 0;
     } else {
-        // Вечір: червоне-помаранчеве сонце (закат)
         sunTexture1 = sunTextureOrange;
         sunTexture2 = sunTextureRed;
-        sunBlend = (phase - 0.5) / 0.25;  // 0→1
+        sunBlend = (phase - 0.5) / 0.25; 
     }
     
-    // Встав позицію та текстури
     gl.uniform3fv(uSunPos, [sunX, sunY, sunZ]);
     gl.uniform1f(uSunBlend, sunBlend);
     
-    // Малюй сонце як велику сферу
     drawSun(sunX, sunY, sunZ, sunTexture1, sunTexture2, sunBlend);
 }
 
-
+/**
+ * @constant {Array<Object>} River path control points
+ * @details Defines the path of the river through the scene using Catmull-Rom
+ *          spline interpolation. Points are distributed along a natural-looking
+ *          curved path from lower-left to upper-right of the terrain.
+ *          Format: each point has {x: number, z: number} coordinates in terrain space.
+ */
 const RIVER_PTS = [
     { x: 5,  z: 5  }, { x: 15, z: 15 }, { x: 25, z: 28 },
     { x: 36, z: 44 }, { x: 44, z: 56 }, { x: 56, z: 66 },
@@ -558,10 +669,8 @@ const RIVER_PTS = [
     { x: 112,z: 96 },
 ];
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ✅ NOVÁ: Funkcionalita pro reinicializaci scény (volaná při reload config)
-// ══════════════════════════════════════════════════════════════════════════════
 
+// GLOBAL STATE
 let gl, canvas;
 let terrainBuffers;
 let flowers, flowerBuffers;
@@ -572,32 +681,29 @@ let skyboxBuffers, ferrisWheel, birdBuffers;
 let waterTexture, grassTexture;
 let program, skyboxProgram;
 let cloudBuffers;
-
 let blikiTexture, paperTexture;
-
-// Uložit všechny uniform lokace pro snadný přístup
 let uniforms = {};
 
 /**
- * @brief Reinicializuje scénu s novou konfigurací
- * @details Volá se automaticky když je config přenačten (Ctrl+R)
- * @param {Object} newConfig - Nová konfigurace
+ * @brief Reinitializes scene with new configuration
+ * @param {Object} newConfig - New scene configuration
+ * @details Called automatically when config is reloaded (Ctrl+R)
  */
 async function reinitializeScene(newConfig) {
     
-    // Vyčisti stare buffery pokud existují
+    // Clean up old terrain buffers
     if (terrain) {
         gl.deleteBuffer(terrainBuffers.vbo);
         gl.deleteBuffer(terrainBuffers.nbo);
         gl.deleteBuffer(terrainBuffers.ibo);
         gl.deleteBuffer(terrainBuffers.tbo);
     }
-    
-    // Vytvoř nový terén s konfigovanými parametry
+        
+    // Create new terrain with configuration
     const terrainConfig = newConfig.terrain || getConfig('terrain');
     terrain = createTerrain(terrainConfig.gridSize, terrainConfig.gridStep);
     
-    // Vytvoř terénní buffery
+    // Create terrain GPU buffers
     terrainBuffers = {
         vbo: gl.createBuffer(),
         nbo: gl.createBuffer(),
@@ -617,67 +723,54 @@ async function reinitializeScene(newConfig) {
     gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffers.tbo);
     gl.bufferData(gl.ARRAY_BUFFER, terrain.texcoords, gl.STATIC_DRAW);
     
-    // Vytvoř objekty s novými parametry
+     // Create scene objects with new configuration
     const flowerConfig = newConfig.flowers || getConfig('flowers');
     flowers = createFlowers(terrain.getHeight, terrain.getBaseHeight, flowerConfig.count, flowerConfig.terrainSize);
     
     const treeConfig = newConfig.terrain || getConfig('terrain');
     trees = createTrees(terrain.getHeight, terrain.getBaseHeight, RIVER_PTS, 80, treeConfig.gridSize);
     
-    // ✅ PUNKT 19.2: Ініціалізуємо стани для анімації дерев
+    // Initialize tree animation states
     treeAutumnStates = new Array(trees.length).fill(false);
     treeAutumnProgress = new Array(trees.length).fill(0);
     
+    // Create river and pebbles
     river = createRiver(terrain.getBaseHeight, 120);
     pebbles = createRiverPebbles(terrain.getHeight, terrain.getBaseHeight, river);
     
-// ══════════════════════════════════════════════════════════════════════════════
-    // ✅ PUNKT 19.1: COLLISION SYSTEM
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+    // Reinitialize collision system
     collisionSystem = new CollisionSystem(
         terrain.getHeight,
         terrain.getBaseHeight,
         120  // terrainSize
     );
     
-    // Додай дерева як collision objects
+    // Add trees as collision objects
     for (const tree of trees) {
         collisionSystem.addCollisionObject(tree.x, tree.z, 2.5);
     }
     
-    // Додай колесо огляду
+    // Add Ferris wheel as collision object
     const wheelConfigInit = getConfig('ferrisWheel');
     collisionSystem.addCollisionObject(
         wheelConfigInit.position[0],
         wheelConfigInit.position[2],
         wheelConfigInit.radius + 5
     );
-    
-    console.log('✅ Collision system aktualizován');
 }
 
+/**
+ * @brief Main application initialization and render loop
+ * @details Sets up WebGL context, loads shaders and textures, 
+ *          initializes scene objects, and starts rendering
+ */
 async function main() {
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ KROK 1: Načti konfiguraci na samém začátku
-    // ══════════════════════════════════════════════════════════════════════════════
     
-    console.log('📋 Načítám konfiguraci...');
+    // STEP 1: Load configuration
     await loadConfig('./config.json');
     const config = getConfig();
-    
-    // Validuj konfiguraci
-    if (!validateConfig(config)) {
-        console.error('❌ Konfigurace není validní!');
-        return;
-    }
-    
-    console.log('✅ Konfigurace úspěšně načtena', config);
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ KROK 2: Setup canvas a WebGL (NEZMĚNĚNO)
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+    // STEP 2: Initialize WebGL context
     canvas = document.getElementById("glCanvas");
     gl = canvas.getContext("webgl");
 
@@ -694,10 +787,7 @@ async function main() {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ KROK 3: Inicializuj scénu s parametry z config
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+    // STEP 3: Initialize scene objects
     const terrainConfig = config.terrain;
     terrain = createTerrain(terrainConfig.gridSize, terrainConfig.gridStep);
     
@@ -708,7 +798,6 @@ async function main() {
     trees = createTrees(terrain.getHeight, terrain.getBaseHeight, RIVER_PTS, 80, terrainConfig.gridSize);
     treeBuffers = initTreeBuffers(gl);
     
-    // ✅ PUNKT 19.2: Ініціалізуємо стани для анімації дерев
     treeAutumnStates = new Array(trees.length).fill(false);
     treeAutumnProgress = new Array(trees.length).fill(0);
 
@@ -722,7 +811,6 @@ async function main() {
     blikiTexture = await loadTexture(gl, "./textures/bliki.jpg");
     paperTexture = await loadTexture(gl, "./textures/paper.jpg");
 
-    // Приклад завантаження
     pebbleTexture = await loadTexture(gl, "./textures/pebble.jpg");
     pebbleSpecTexture = await loadTexture(gl, "./textures/pebble_spec.jpg");
 
@@ -736,15 +824,13 @@ async function main() {
     collisionSystem = new CollisionSystem(
         terrain.getHeight,
         terrain.getBaseHeight,
-        120  // terrainSize
+        120  
     );
     
-    // Додай дерева як collision objects
     for (const tree of trees) {
         collisionSystem.addCollisionObject(tree.x, tree.z, 2.5);
     }
     
-    // Додай колесо огляду
     const wheelConfigCollision = getConfig('ferrisWheel');
     collisionSystem.addCollisionObject(
         wheelConfigCollision.position[0],
@@ -772,10 +858,7 @@ async function main() {
     gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffers.tbo);
     gl.bufferData(gl.ARRAY_BUFFER, terrain.texcoords, gl.STATIC_DRAW);
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ KROK 4: Initialize cameras (NEZMĚNĚNO)
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+    // STEP 4: Initialize cameras    
     const cameraStatic = new Camera();
     const cameraOrbit = new Camera();
     const cameraCabin = new Camera();
@@ -790,26 +873,13 @@ async function main() {
     let draggedFlowerIndex = -1;
     let splineTime = 0;
 
-const splineControlPoints = [
-    // --- ПІДГОТОВКА (Points -2, -1) ---
-    // Ці точки не бачить камера, вони лише задають напрямок входу в першу точку
-    { x: 85, y: 20, z: 110 },  // Дублюємо передостанню (P_end-1) | 25+60, 50+60
-    { x: 50, y: 20, z: 70 },   // Дублюємо першу (P0) | -10+60, 10+60
-
-    // --- ОСНОВНИЙ ШЛЯХ (Тут камера реально летить) ---
-    { x: 50, y: 20, z: 70 },   // P0: Початок біля озера | -10+60, 10+60
-    { x: 30, y: 20, z: 35 },   // P1: Западний схил | -35+60, -25+60
-    { x: 70, y: 20, z: 5 },    // P2: Центр над річкою | 10+60, -55+60
-    { x: 115, y: 20, z: 50 },  // P3: Проліт біля колеса | 55+60, -10+60
-    { x: 110, y: 20, z: 105 }, // P4: Північний схил | 50+60, 45+60
-    { x: 85, y: 20, z: 110 },  // P5: Повернення до низу | 25+60, 50+60
-
-    // --- ЗАЦИКЛЕННЯ (Points +1, +2) ---
-    // Ці точки потрібні, щоб коли камера переходить з P5 в P0, не було ривка
-    { x: 50, y: 20, z: 70 },   // Дублюємо P0 | -10+60, 10+60
-    { x: 30, y: 20, z: 35 },   // Дублюємо P1 | -35+60, -25+60
-    { x: 70, y: 20, z: 5 }     // Дублюємо P2 | 10+60, -55+60
-];
+    // Spline control points for camera animation
+    const splineControlPoints = [
+        { x: -10, y: 15, z: 10 },
+        { x: -20, y: 20, z: -30 }, 
+        { x: 40, y: 25, z: -10 }, 
+        { x: 50, y: 25, z: 50 }, 
+    ];
 
     cameraStatic.position = [0, 10, 35];
     cameraStatic.target   = [0, 0, 0];
@@ -825,10 +895,7 @@ const splineControlPoints = [
     cameraCabin.isOrbit   = false;
     cameraSpline.isOrbit  = false;
     
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ KROK 5: Load a compile shaders (NEZMĚNĚNO)
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+    // STEP 5: Load and compile shaders
     const vsSource = await loadShaderSource("./shaders/basic/vertex.glsl");
     const fsSource = await loadShaderSource("./shaders/basic/fragment.glsl");
 
@@ -881,7 +948,7 @@ const splineControlPoints = [
     const uSpecularMap = gl.getUniformLocation(program, "uSpecularMap");
     const uIsPebble = gl.getUniformLocation(program, "uIsPebble");
 
-    // Load and compile skybox shaders
+    // Load skybox shaders
     const vsSkySource = await loadShaderSource("./shaders/skybox/vertex.glsl");
     const fsSkySource = await loadShaderSource("./shaders/skybox/fragment.glsl");
     const vsSky = createShader(gl, gl.VERTEX_SHADER, vsSkySource);
@@ -901,11 +968,9 @@ const splineControlPoints = [
 
     const uFogMode = gl.getUniformLocation(program, "uFogMode");
 
-    // ✅ PUNKT 18a: ДИНАМІЧНІ СВІТЛА
     const uLightColor = gl.getUniformLocation(program, "uLightColor");
     const uLightIntensity = gl.getUniformLocation(program, "uLightIntensity");
     
-    // ✅ PUNKT 18b: ДИНАМІЧНА ТУМАНЕНЬ
     const uFogColor = gl.getUniformLocation(program, "uFogColor");
     const uFogDensity = gl.getUniformLocation(program, "uFogDensity");
 
@@ -937,25 +1002,16 @@ const splineControlPoints = [
     gl.clearColor(0.45, 0.25, 0.1, 1.0);
     lanternBuffers = initLanternBuffers(gl);
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ KROK 6: Registruj config reload callback
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+    // STEP 6: Register configuration reload callback    
     onConfigReload((newConfig) => {
         console.log('🔄 Aplikuji novou konfiguraci...', newConfig);
         reinitializeScene(newConfig);
     });
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ KROK 7: Setup hotkey pro reload (Ctrl+R / Cmd+R)
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+    // STEP 7: Setup config reload hotkey
     setupConfigReloadHotkey('r', './config.json');
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ KROK 8: Keyboard input handler (NEZMĚNĚNO)
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+    // STEP 8: Keyboard input handler
     window.addEventListener("keydown", (e) => {
         if (e.key === "1") activeCamera = cameraStatic;
         if (e.key === "2") activeCamera = cameraOrbit;
@@ -980,12 +1036,10 @@ const splineControlPoints = [
             if (e.key === "ArrowLeft")  { cameraStatic.position[0] -= speed; cameraStatic.target[0] -= speed; }
             if (e.key === "ArrowRight") { cameraStatic.position[0] += speed; cameraStatic.target[0] += speed; }
         }
+        cameraStatic.position = collisionSystem.resolveCollisions(cameraStatic.position);
     });
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ KROK 9: Mouse input handler (NEZMĚNĚNO - bez změn)
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+    // STEP 9: Mouse input handler
     let isDragging = false;
     let lastX = 0;
     let lastY = 0;
@@ -1003,55 +1057,37 @@ const splineControlPoints = [
         const clickScreenX = (clickStartX - rect.left) / rect.width * 2 - 1;
         const clickScreenY = 1 - (clickStartY - rect.top) / rect.height * 2;
         
-        console.log(`🖱️ CLICK: screenX=${clickScreenX.toFixed(2)}, screenY=${clickScreenY.toFixed(2)}`);
-        
-        // ✅ FERRIS WHEEL PICKING - ПРОСТО ПЕРЕВІРИМО БЛИЗЬКО ЛИ ЦЕНТР
+        // Handle Ferris wheel picking
         const wheelConfig = getConfig('ferrisWheel');
         
-        // WORLD координати для picking
         const wheelCenterWorld = [
-            wheelConfig.position[0] + 60,  // LOCAL → WORLD
+            wheelConfig.position[0] + 60, 
             wheelConfig.position[1],
-            wheelConfig.position[2] + 60   // LOCAL → WORLD
+            wheelConfig.position[2] + 60  
         ];
         
-        // Камера у world space
         const camPos = activeCamera.position;
         
-        console.log(`🎡 Wheel Center (WORLD):`, wheelCenterWorld);
-        console.log(`📷 Camera Position:`, camPos);
-        
-        // ✅ ПРОСТИЙ МЕТОД: якщо клік біля центра екрану - натискаємо на центр
-        // (коли дивимось на колесо прямо, центр завжди біля середини екрану)
         const distFromCenter = Math.sqrt(clickScreenX * clickScreenX + clickScreenY * clickScreenY);
         
-        console.log(`📏 Distance from screen center: ${distFromCenter.toFixed(3)}`);
-        console.log(`🎯 Threshold: 0.25`);
-        
-        // Якщо клік близько до центру екрану - вважаємо колесо натиснутим
         if (distFromCenter < 0.25) {
-            // 🔴 ПОТОЧНИЙ ANGLE (з глобального часу)
             const wheelConfig = getConfig('ferrisWheel');
             const currentAngle = wheelIsRotating 
-                ? (globalTime - wheelTimeOffset) * wheelConfig.rotationSpeed  // 🔴 З offset!
+                ? (globalTime - wheelTimeOffset) * wheelConfig.rotationSpeed 
                 : wheelPausedAngle;
             
             if (wheelIsRotating) {
-                // ПАУЗУЄМО - зберігаємо поточний кут
                 wheelPausedAngle = currentAngle;
                 wheelIsRotating = false;
-                console.log('⏹️ 🎡 Wheel PAUSED at angle:', wheelPausedAngle.toFixed(3));
             } else {
-                // ПРОДОВЖУЄМО - обчислюємо offset щоб продовжити звідки припинили
                 wheelIsRotating = true;
                 wheelTimeOffset = globalTime - (wheelPausedAngle / wheelConfig.rotationSpeed);
-                console.log('▶️ 🎡 Wheel RESUMED from angle:', wheelPausedAngle.toFixed(3), 'timeOffset:', wheelTimeOffset.toFixed(3));
             }
         } else {
-            console.log('❌ Click too far from center');
+            console.log('Click too far from center');
         }
         
-        // ✅ TREES PICKING - для анімації сезону
+         // Handle tree picking
         const viewMatrix = activeCamera.getViewMatrix();
         const aspect = canvas.width / canvas.height;
         const projMatrix = makePerspective(Math.PI / 3, aspect, 0.1, 200.0);
@@ -1059,21 +1095,20 @@ const splineControlPoints = [
         let closestTreeIndex = -1;
         let closestTreeScreenDist = Infinity;
         
-        const treeTerrainOffset = [-60, 0, -60];  // Той же offset як у renderTrees
+        const treeTerrainOffset = [-60, 0, -60]; 
         
         for (let i = 0; i < trees.length; i++) {
             const tree = trees[i];
             
-            // 🔴 ВАЖНО: Додаємо terrainOffset, як у renderTrees!
-            const worldX = tree.x + treeTerrainOffset[0];  // world coords з offset
+            const worldX = tree.x + treeTerrainOffset[0]; 
             const worldY = (tree.y || 0) + treeTerrainOffset[1];
-            const worldZ = tree.z + treeTerrainOffset[2];  // world coords з offset
+            const worldZ = tree.z + treeTerrainOffset[2]; 
             
             const viewX = viewMatrix[0] * worldX + viewMatrix[4] * worldY + viewMatrix[8] * worldZ + viewMatrix[12];
             const viewY = viewMatrix[1] * worldX + viewMatrix[5] * worldY + viewMatrix[9] * worldZ + viewMatrix[13];
             const viewZ = viewMatrix[2] * worldX + viewMatrix[6] * worldY + viewMatrix[10] * worldZ + viewMatrix[14];
             
-            if (viewZ >= 0) continue;  // За камерою
+            if (viewZ >= 0) continue;  
             
             const projX = projMatrix[0] * viewX + projMatrix[8] * viewZ;
             const projY = projMatrix[5] * viewY + projMatrix[9] * viewZ;
@@ -1087,7 +1122,6 @@ const splineControlPoints = [
                 (screenY - clickScreenY) * (screenY - clickScreenY)
             );
             
-            // Radius дерева на екрані (більший, ніж у цветов)
             if (screenDist < 0.15 && screenDist < closestTreeScreenDist) {
                 closestTreeScreenDist = screenDist;
                 closestTreeIndex = i;
@@ -1096,10 +1130,9 @@ const splineControlPoints = [
         
         if (closestTreeIndex !== -1) {
             treeAutumnStates[closestTreeIndex] = !treeAutumnStates[closestTreeIndex];
-            console.log('🌳 Tree', closestTreeIndex, 'toggled! State:', treeAutumnStates[closestTreeIndex] ? 'AUTUMN 🍂' : 'SUMMER 🌿');
         }
         
-        // ✅ FLOWERS PICKING - використовуємо ТІ ЖЕ viewMatrix і projMatrix
+        // Handle flower picking
         let closestIndex = -1;
         let closestScreenDist = Infinity;
         
@@ -1227,7 +1260,6 @@ const splineControlPoints = [
             flower.x = Math.max(0, Math.min(120, flower.x));
             flower.z = Math.max(0, Math.min(120, flower.z));
             
-            console.log("🌼 Flower dragged", draggedFlowerIndex, "position:", [flower.x.toFixed(1), flower.z.toFixed(1)]);
         } else if (activeCamera.isOrbit) {
             activeCamera.targetYaw   += dx * activeCamera.sensitivity;
             activeCamera.targetPitch += dy * activeCamera.sensitivity;
@@ -1246,55 +1278,47 @@ const splineControlPoints = [
         }
     });
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // ✅ RENDER LOOP - (TÉMĚŘ NEZMĚNĚNO)
-    // ══════════════════════════════════════════════════════════════════════════════
-    
+   // STEP 10: Main render loop
     const timeManager = new TimeManager(15.0);
     function render() {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         const t = performance.now() * 0.001;
-        globalTime = t;  // 🔴 Зберігаємо для mousedown handler
+        globalTime = t; 
         const timeData = timeManager.update(t);
     
-        // Оновлюй все по часу
+        // Update lighting and atmosphere
         updateLightParameters(timeData, gl, uLightPos, uLightColor, uLightIntensity);
         updateFogParameters(timeData, gl, uFogMode, uFogColor, uFogDensity);
-        // updateSkybox(timeData, gl, skyboxTextures);
-        // updateSunRenderer(timeData, gl);
         
         gl.uniform1f(uTime, t);
         gl.uniform1i(uIsWater, 0);
 
+        // Update flower animations
         const animationSpeed = 0.08;
         for (let i = 0; i < flowerScales.length; i++) {
             flowerScales[i] += (flowerTargetScales[i] - flowerScales[i]) * animationSpeed;
         }
-        
-        // ✅ PUNKT 19.2: Обновлюємо анімацію дерев (0.5 сек = 2 fps)
-        const treeAnimSpeed = 0.04;  // 0-1 за 0.5 сек (0.02 на frame при 60fps)
+
+        // Update tree autumn animations
+        const treeAnimSpeed = 0.04; 
         for (let i = 0; i < treeAutumnProgress.length; i++) {
             if (treeAutumnStates[i]) {
-                treeAutumnProgress[i] = Math.min(1, treeAutumnProgress[i] + treeAnimSpeed);  // до жовтого
+                treeAutumnProgress[i] = Math.min(1, treeAutumnProgress[i] + treeAnimSpeed); 
             } else {
-                treeAutumnProgress[i] = Math.max(0, treeAutumnProgress[i] - treeAnimSpeed);  // до зеленого
+                treeAutumnProgress[i] = Math.max(0, treeAutumnProgress[i] - treeAnimSpeed); 
             }
         }
         
-        // 🔴 DEBUG: Логуємо стан дерев
         if (treeAutumnProgress.some(p => p > 0 && p < 1)) {
-            console.log('🌳 Trees animation:', treeAutumnProgress.map((p, i) => `[${i}]=${p.toFixed(2)}`).join(' '));
         }
 
         gl.uniform1i(uFogMode, 2);
 
-        // ── UPDATE LIGHTING MODE (Z CONFIG) ──
-// ── UPDATE LIGHTING MODE (Z CONFIG) ──
+        // Update lighting mode from configuration
         const sceneConfig = getConfig('scene');
         
         if (lightingMode === 0) {
-            // ✅ Light now updated by updateLightParameters()
             gl.clearColor(...sceneConfig.backgroundColor, 1.0);
         } else if (lightingMode === 1) {
             gl.clearColor(0.05, 0.05, 0.15, 1.0); 
@@ -1302,6 +1326,7 @@ const splineControlPoints = [
             gl.clearColor(0.25, 0.15, 0.1, 1.0);
         }
 
+        // Update spotlight
         gl.uniform3fv(uSpotlightPos, activeCamera.position);
         const spotDir = [
             activeCamera.target[0] - activeCamera.position[0],
@@ -1314,15 +1339,10 @@ const splineControlPoints = [
         gl.uniform1f(uSpotlightIntensity, 0.6);
         gl.uniform1f(uSpotlightAngle, Math.cos(Math.PI / 8.0));
  
-        // ── UPDATE POINT LIGHTS (Z CONFIG) ──
+        // Update point lights
         const lightsConfig = getConfig('lights');
         const wheelConfig = getConfig('ferrisWheel');
-        // ✅ PUNKT 19.2: wheelCenterPos у WORLD координатах для picking
-        const wheelCenterPos = [
-            wheelConfig.position[0] + 60,  // LOCAL → WORLD
-            wheelConfig.position[1],
-            wheelConfig.position[2] + 60   // LOCAL → WORLD
-        ];
+        const wheelCenterPos = wheelConfig.position;
         const numLights = lightsConfig.lanternCount;
         const lightRadius = lightsConfig.lanternDistance;
         const lanternHeight = lightsConfig.lanternHeight;
@@ -1348,24 +1368,12 @@ const splineControlPoints = [
         gl.uniform1f(uPointLightIntensity, pulsing * 1.5);
         gl.uniform1f(uPointLightRadius, 40.0);
  
-        // ✅ PUNKT 19.1: Применяй колізії для камери
-        if (activeCamera === cameraStatic || activeCamera === cameraSpline) {
-            // Статична камера - обмежуємо позицію
-            activeCamera.position = collisionSystem.resolveCollisions(activeCamera.position);
-        }
-        
-        // Orbit камера - лише bounds check (не близько до об'єктів)
-        if (activeCamera === cameraOrbit) {
-            const orbPos = activeCamera.position;
-            if (!collisionSystem.isWithinTerrainBounds(orbPos[0], orbPos[2])) {
-                activeCamera.position = collisionSystem.clampToTerrainBounds(orbPos);
-            }
-        }
-        
+        // Update camera and render
         activeCamera.update();
         gl.uniformMatrix4fv(uView, false, activeCamera.getViewMatrix());
 
-       gl.useProgram(skyboxProgram);
+        // Render skybox
+        gl.useProgram(skyboxProgram);
         gl.uniform1f(uLightingMode, lightingMode);
         
         const phase = timeData.dayPhase;
@@ -1390,7 +1398,7 @@ const splineControlPoints = [
         gl.uniform1i(uIsWater, 0);
         gl.uniform1i(uIsFlower, 0);
 
-        // ── GRASS ANIMATION (punkt 15b) ──
+        // Grass animation
         const grassAnimSpeed = 8.0;
         const grassFrameIndex = Math.floor((t * grassAnimSpeed) % 16);
         
@@ -1405,26 +1413,21 @@ const splineControlPoints = [
         renderTerrain(gl, terrainBuffers, terrain, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uTexture, uUseTexture, grassTexture);
         gl.uniform1i(uUseGrassAnimation, 0);
 
+        // Render scene objects
         renderTrees(gl, treeBuffers, trees, [-60, 0, -60], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower, treeAutumnProgress);
         renderRiver(gl, riverBuffers, river, [-60, 0, -60], t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uTime, waterTexture, uTexture, uIsWater);
         renderPebbles(gl, pebbleBuffers, pebbles, [-60, 0, -60],  aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, pebbleTexture, pebbleSpecTexture, uTexture, uSpecularMap, uIsPebble);
 
-        // ✅ PUNKT 19.2: wheelCenterPos - ЛОКАЛЬНІ координати для rendering
         const wheelCenterPosLocal = wheelConfig.position;
         
-        // WORLD координати для picking
         const wheelCenterPosWorld = [
-            wheelConfig.position[0] + 60,  // LOCAL → WORLD
+            wheelConfig.position[0] + 60, 
             wheelConfig.position[1],
-            wheelConfig.position[2] + 60   // LOCAL → WORLD
+            wheelConfig.position[2] + 60 
         ];
         
         const wheelAngle = wheelIsRotating ? (t - wheelTimeOffset) * wheelConfig.rotationSpeed : wheelPausedAngle;
         
-        // 🔴 ДЕБУГІНГ
-        if (Math.random() < 0.01) {  // логуємо рідко
-            console.log(`🎡 wheelIsRotating=${wheelIsRotating}, wheelAngle=${wheelAngle.toFixed(3)}, wheelPausedAngle=${wheelPausedAngle.toFixed(3)}, t=${t.toFixed(2)}, offset=${wheelTimeOffset.toFixed(3)}`);
-        }
         renderFerrisWheel(gl, ferrisWheel, wheelAngle, wheelCenterPosLocal, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, cabinLightsOn);
 
         const WHEEL_RADIUS = wheelConfig.radius;
@@ -1432,6 +1435,7 @@ const splineControlPoints = [
         const CAMERA_Z_OFFSET = 1.0;
         const cabinA = wheelAngle;
         
+        // Update cabin camera
         const cameraAngle = cabinA + Math.PI;
         
         cameraCabin.position = [
@@ -1452,6 +1456,7 @@ const splineControlPoints = [
             cameraCabin.position[2] - Math.cos(yaw) * Math.cos(pitch) * 50.0
         ];
 
+        // Update spline camera
         splineTime += 0.0005;
         if (splineTime > 1.0) splineTime = 0.0;
         
@@ -1460,37 +1465,28 @@ const splineControlPoints = [
         const splineTangent = getSplineTangent(splineControlPoints, splineTime);
         cameraSpline.target = getSplineTarget(splinePos, splineTangent, 15.0);
 
-        // ════════════════════════════════════════════════════════════════════════
-        // ✨ RENDER LANTERNS WITH MULTITEXTURING ✨
-        // ════════════════════════════════════════════════════════════════════════
-        
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-        // Кажемо шейдеру використовувати спеціальний режим для ліхтарів
         gl.uniform1i(uUseLanternMultitex, 1);
 
-        // Прив'язуємо бліки до TEXTURE2
         gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture(gl.TEXTURE_2D, blikiTexture);
         gl.uniform1i(uBlikiTexture, 2); 
 
-        // Прив'язуємо папір до TEXTURE3
         gl.activeTexture(gl.TEXTURE3);
         gl.bindTexture(gl.TEXTURE_2D, paperTexture);
         gl.uniform1i(uPaperTexture, 3);
 
-        // Малюємо
         renderLanterns(gl, lanternBuffers, aPosition, aNormal, aTexCoord, uModel, uObjectColor,uUseTexture, uIsFlower, uIsWater, uIsCloud, uAlpha, uUseLanternMultitex, uIsLantern);
 
-        // ПІСЛЯ малювання ліхтарів ОБОВ'ЯЗКОВО вимикаємо цей режим
         gl.uniform1i(uUseLanternMultitex, 0);
 
         const identityMatrix = new Float32Array([1,0,0, 0,1,0, 0,0,1]);
         gl.uniformMatrix3fv(uTexMatrix, false, identityMatrix);
         
-        // RENDER FLOWERS, CLOUDS, BIRDS
         
+        // Render remaining objects
         renderFlowers(gl, flowerBuffers, flowers, [-60, 0, -60], aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsFlower, flowerScales);
         renderClouds(gl, cloudBuffers, t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower, uIsCloud, uTime);
         renderBirds(gl, birdBuffers, t, aPosition, aNormal, aTexCoord, uModel, uObjectColor, uUseTexture, uIsWater, uIsFlower, uIsBird, birdTexture, uTexture);
